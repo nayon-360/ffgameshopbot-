@@ -1,0 +1,20 @@
+pytz
+aiohttp
+telethon
+pymongo
+pyPDF2
+beautifulsoup4
+html2text
+flask
+requests
+dnspython
+aiohttp
+flask
+python-dotenv==1.0.0
+asyncio==3.4.3
+gunicorn
+# Gemini Customer Support Dependencies (new additions)
+google-generativeai==0.7.2  # For Gemini API integration
+langdetect==1.0.9          # For language detection
+pytube
+google-api-python-client
