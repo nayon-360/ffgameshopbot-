@@ -348,7 +348,7 @@ def create_bkash_payment(amount, user_id):
     payload = {
         "mode": "0011",
         "payerReference": str(user_id),
-        "callbackURL": "https://toufik-mia-bow-gece-ga-tai-gaja-khay-unipinbusness.replit.app/callback",
+        "callbackURL": "https://ffgameshopbot-ebrx.onrender.com/callback",
         "amount": str(amount),
         "currency": "BDT",
         "intent": "sale",
@@ -4204,7 +4204,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # DrutoPay ক্রেডেনশিয়াল (আপনার প্রকৃত ক্রেডেনশিয়াল দিয়ে প্রতিস্থাপন করুন)
-DRUTOPAY_API_KEY = "b3JqBi7a5KtSeQ97qpw5eYtaSKML2yPNUGjyx64zM1HhEhz5n0"
+DRUTOPAY_API_KEY = "tK5oC8NIklNIO7ltEjTBumH1npDmVav5RU0b8RmaD0CBrhhRrk"
 DRUTOPAY_SECRET_KEY = "3567826367"
 DRUTOPAY_BRAND_KEY = "VIDNL3bQNdrjaEMIxB1Zgsuv0nWDoffEU9uHGJheKaL77S9Oti"
 # DrutoPay পেমেন্ট তৈরি ফাংশন
@@ -4330,8 +4330,8 @@ async def pay(event):
                 logger.info(f"Non-admin or non-private chat, using sender {user_id} for /pay")
 
             amount = int(event.pattern_match.group(1))
-            success_url = "https://toufik-mia-bow-gece-ga-tai-gaja-khay-unipinbusness.replit.app/drutopay_callback"
-            cancel_url = "https://toufik-mia-bow-gece-ga-tai-gaja-khay-unipinbusness.replit.app/drutopay_callback"
+            success_url = "https://ffgameshopbot-ebrx.onrender.com/drutopay_callback"
+            cancel_url = "https://ffgameshopbot-ebrx.onrender.com/drutopay_callback"
             logger.info(f"Creating payment for user {user_id} with amount {amount}")
             payment_response = create_drutopay_payment(user_id, amount, success_url, cancel_url)
             if payment_response:
