@@ -971,7 +971,7 @@ async def topup_command(event):
             "┌─────────────────────┐",
             f"│ 𝚃𝚘𝚝𝚊𝚕  : {total_cost}৳",
             f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
-            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 SCB ───┘"
+            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘"
         ]
         initial_message = await event.reply("\n".join(initial_response_lines))
         logger.info(f"Sent initial pending message for order {orderid} to chat {event.chat_id}, message_id {initial_message.id}")
