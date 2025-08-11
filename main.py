@@ -27,7 +27,7 @@ import asyncio
 from flask import Flask, request, jsonify, redirect, url_for, abort
 from flask import Flask, request, jsonify, redirect, url_for, abort
 # MongoDB URL
-MONGO_URI = "mongodb+srv:///?retryWrites=true&w=majority&appName=SCB"
+MONGO_URI = "mongodb+srv://ffgameshop:JocAldxJt6PpnDEY@ffgameshop.srngocw.mongodb.net/?retryWrites=true&w=majority&appName=ffgameshop"
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client["telegram_bot_db"]
 
@@ -302,13 +302,13 @@ def save_notification_message():
 load_notification_message()
 
 # Admin and Developer IDs
-ADMIN_ID = 7997734901
-DEVELOPER_ID = 6800514254
-BOT_PREFIX = "/"
+ADMIN_ID = 7218497452
+DEVELOPER_ID = 7067076598
+BOT_PREFIX = "F"
 # Telegram API Credentials
-api_id = 22999246
-api_hash = '54db0474981445a57289b4a60e9839a6'
-phone_number = '+8801772575623'
+api_id = 26230685
+api_hash = 'ae245c07de7eb0765fa454b257143013'
+phone_number = '+8801786683825'
 #subscribe
 BD_TIMEZONE = pytz.timezone("Asia/Dhaka")
 
