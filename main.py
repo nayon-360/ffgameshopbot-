@@ -408,7 +408,7 @@ def create_bkash_payment(amount, user_id):
     payload = {
         "mode": "0011",
         "payerReference": str(user_id),
-        "callbackURL": "https://scb-unipin-bot.onrender.com/callback",
+        "callbackURL": "https://ffgameshopbot-ebrx.onrender.com/callback",
         "amount": str(amount),
         "currency": "BDT",
         "intent": "sale",
@@ -628,8 +628,8 @@ def delete_pending_topup(order_id):
     pending_topups_collection.delete_one({"_id": order_id})
 
 # Callback URL for the external top-up API
-CALLBACK_BASE_URL = "https://scb-unipin-bot.onrender.com" # As per your original code
-TOPUP_API_URL = "http://51.79.254.251:3333/complete" # As per your original code
+CALLBACK_BASE_URL = "https://ffgameshopbot-ebrx.onrender.com" # As per your original code
+TOPUP_API_URL = "http://15.235.163.161:3333/complete" # As per your original code
 
 # Command: /tpsignup
 @client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}tpsignup$'))
@@ -1007,10 +1007,10 @@ async def topup_command(event):
             }
             if is_shell_package:
                 data.update({
-                    "username": "",
-                    "password": "",
-                    "autocode": "",
-                    "tgbotid": "1904273829",
+                    "username": "NAYON-2090",
+                    "password": "Ff&#%@14@Wf",
+                    "autocode": "AKAHLLT5ZFEQG3FV",
+                    "tgbotid": "19029",
                     "shell_balance": 00
                 })
             try:
