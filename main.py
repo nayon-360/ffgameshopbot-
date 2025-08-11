@@ -4581,7 +4581,7 @@ logger = logging.getLogger(__name__)
 # DrutoPay ক্রেডেনশিয়াল (আপনার প্রকৃত ক্রেডেনশিয়াল দিয়ে প্রতিস্থাপন করুন)
 DRUTOPAY_API_KEY = "YqDX072m5XJKLvbM88astrhlFyIhyNWGc44MYwkLfsJrS7nJu4"
 DRUTOPAY_SECRET_KEY = "3567826367"
-DRUTOPAY_BRAND_KEY = "VIDNL3bQNdrjaEMIxB1Zgsuv0nWDoffEU9uHGJheKaL77S9Oti"
+DRUTOPAY_BRAND_KEY = "YqDX072m5XJKLvbM88astrhlFyIhyNWGc44MYwkLfsJrS7nJu4"
 # DrutoPay পেমেন্ট তৈরি ফাংশন
 # ট্রানজেকশন আইডি সংরক্ষণের জন্য একটি ডিকশনারি
 transaction_ids = {}
