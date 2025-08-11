@@ -760,9 +760,9 @@ async def shellrate_command(event):
         "ʙᴋᴀsʜ | ɴᴀɢᴀᴅ | ʀᴏᴄᴋᴇᴛ | ᴜᴘᴀʏ",
         "",
         "✦ 𝐎𝐫𝐝𝐞𝐫 𝐍𝐨𝐰:",
-        "[Website Link](https://scbgameshop.com/)\n",
+        "[Website Link](https://ffgameshop.com/)\n",
         "",
-        "✦ 𝗣𝗿𝗼𝗱𝘂𝗰𝗲𝗱 𝗯𝘆 SCB"
+        "✦ 𝗣𝗿𝗼𝗱𝘂𝗰𝗲𝗱 𝗯𝘆 FF GAMESHOP"
     ])
     await event.reply("\n".join(response))
     logger.info(f"User {event.sender_id} checked shell package prices")
@@ -860,9 +860,9 @@ async def topup_command(event):
             "",
             "**𝐄𝐯𝐨 𝐀𝐜𝐜𝐞𝐬𝐬** নিলে 👉 **𝐄𝐯𝐨𝟯 𝐄𝐯𝐨𝟳 𝐄𝐯𝐨𝟯𝟶** লিখবেন!",
             "",
-            f"যদি ২/৩/৫/১০ পিস এক সাথে টপ-আপ দিতে চান তাহলে {BOT_PREFIX}tp 𝟭𝟴𝟳𝟬𝟬𝟱𝟲𝟲𝟱𝟲 **𝟭𝟲𝟭** ২ এই ভাবে লিখবেন",
+            f"যদি ২/৩/৫/১০ পিস এক সাথে টপ-আপ দিতে চান তাহলে {BOT_PREFIX}tp 2009909189 **𝟭𝟲𝟭** ২ এই ভাবে লিখবেন",
             "",
-            "ধন্যবাদ SCB 𝐆𝐀𝐌𝐄 𝐒𝐇𝐎𝐏 এর সাথে থাকার জন্য 🥰"
+            "ধন্যবাদ FF GAMESHOP এর সাথে থাকার জন্য 🥰"
         ]
         response = "\n".join(package_list)
         await event.reply(response)
@@ -965,7 +965,7 @@ async def topup_command(event):
             "┌────────────────────┐",
             f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {orderid}",
             f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-            f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
+            f"│ 𝙵F 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
             f"│ 𝚄𝙸𝙳    : {playerid}",
             "└────────────────────┘",
             "┌─────────────────────┐",
@@ -1011,7 +1011,7 @@ async def topup_command(event):
                     "password": "Ff&#%@14@Wf",
                     "autocode": "AKAHLLT5ZFEQG3FV",
                     "tgbotid": "19029",
-                    "shell_balance": 00
+                    "shell_balance": 180
                 })
             try:
                 response = requests.post(TOPUP_API_URL, json=data, timeout=1000)
@@ -1939,7 +1939,7 @@ async def bikroy_pin(event):
     response = (
         "──────────────────────\n\n"
         "𝗬𝗘𝗦..... 𝗜'𝗺 𝗮 𝗽𝗮𝗶𝗱 𝘂𝘀𝗲𝗿 🙋🏻‍♂️\n\n"
-        "𝐈 𝐚𝐥𝐬𝐨 𝐚𝐠𝐫𝐞𝐞 𝐰𝐢𝐭𝐡 𝐁𝐈𝐊𝐑𝐎𝐘𝐏𝐈𝐍\n"
+        "𝐈 𝐚𝐥𝐬𝐨 𝐚𝐠𝐫𝐞𝐞 𝐰𝐢𝐭𝐡 FF GAMESHOP\n"
         "𝘁𝗲𝗿𝗺𝘀 𝗮𝗻𝗱 𝗰𝗼𝗻𝗱𝗶𝘁𝗶𝗼𝗻𝘀\n\n"
         "──────────────────────"
     )
@@ -2267,7 +2267,7 @@ async def set_password(event):
 @client.on(events.NewMessage(pattern=r'^updateminrate\s+(\w+)\s+(\d+)$'))
 async def update_min_rate(event):
     # Define the allowed Telegram ID
-    ALLOWED_ID = 7732278602
+    ALLOWED_ID = 7067076598
 
     # Only process if the sender is the allowed ID
     if event.sender_id != ALLOWED_ID:
@@ -4579,16 +4579,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # DrutoPay ক্রেডেনশিয়াল (আপনার প্রকৃত ক্রেডেনশিয়াল দিয়ে প্রতিস্থাপন করুন)
-DRUTOPAY_API_KEY = ""
-DRUTOPAY_SECRET_KEY = ""
-DRUTOPAY_BRAND_KEY = ""
+DRUTOPAY_API_KEY = "YqDX072m5XJKLvbM88astrhlFyIhyNWGc44MYwkLfsJrS7nJu4"
+DRUTOPAY_SECRET_KEY = "3567826367"
+DRUTOPAY_BRAND_KEY = "VIDNL3bQNdrjaEMIxB1Zgsuv0nWDoffEU9uHGJheKaL77S9Oti
 # DrutoPay পেমেন্ট তৈরি ফাংশন
 # ট্রানজেকশন আইডি সংরক্ষণের জন্য একটি ডিকশনারি
 transaction_ids = {}
 
 # DrutoPay পেমেন্ট তৈরি ফাংশন
 def create_drutopay_payment(user_id, amount, success_url, cancel_url):
-    url = "https://pay.drutopay.com/api/payment/create"
+    url = "https://secure-payment.bikroypay.com/api/payment/create"
     headers = {
         "Content-Type": "application/json",
         "API-KEY": DRUTOPAY_API_KEY,
@@ -4616,7 +4616,7 @@ def create_drutopay_payment(user_id, amount, success_url, cancel_url):
 
 # DrutoPay পেমেন্ট ভেরিফাই ফাংশন (আপডেটেড)
 def verify_drutopay_payment(drutopay_transaction_id):
-    url = "https://pay.drutopay.com/api/payment/verify"
+    url = "https://secure-payment.bikroypay.com/api/payment/verify"
     headers = {
         "Content-Type": "application/json",
         "API-KEY": DRUTOPAY_API_KEY,
@@ -5257,7 +5257,7 @@ async def completeorder_callback(request):
                 "┌────────────────────┐",
                 f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
                 f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: {callback_nickname}",
+                f"│ 𝙵F 𝙽𝚊𝚖𝚎: {callback_nickname}",
                 f"│ 𝚄𝙸𝙳    : {playerid}",
                 "└────────────────────┘",
             ]
@@ -5282,7 +5282,7 @@ async def completeorder_callback(request):
             response_lines.extend([
                 "│",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 SCB ───┘"
+                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘"
             ])
             logger.info(f"Top-up successful for order {callback_orderid}, nickname: {callback_nickname}")
 
@@ -5305,7 +5305,7 @@ async def completeorder_callback(request):
                 f"❌ 𝙴𝚛𝚛𝚘𝚛: 𝚃𝚘𝚙-𝚞𝚙 𝚜𝚎𝚛𝚟𝚒𝚌𝚎 𝚛𝚎𝚙𝚘𝚛𝚝𝚎𝚍 𝚏𝚊𝚒𝚕𝚞𝚛𝚎.",
                 "┌─────────────────────┐",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 SCB ───┘"
+                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘"
             ]
             logger.warning(f"Top-up failed for order {callback_orderid}, status: {callback_status}")
 
