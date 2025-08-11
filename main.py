@@ -3306,9 +3306,9 @@ async def show_rates(event):
         "☞︎︎︎ SM Payment ➪ ɴᴏ ᴇxᴛʀᴀ ғᴇᴇ\n"
         "ʙᴋᴀsʜ | ɴᴀɢᴀᴅ | ʀᴏᴄᴋᴇᴛ | ᴜᴘᴀʏ\n\n"
         "✦ 𝐎𝐫𝐝𝐞𝐫 𝐍𝐨𝐰:\n"
-        "[Website Link](https://scbgameshop.com/)\n"
+        "[Website Link](https://ffgameshop.com/)\n"
         "━━━━━━━━━━━━━━━\n"
-        "✦ 𝗣𝗿𝗼𝗱𝘂𝗰𝗲𝗱 𝗯𝘆 SCB"
+        "✦ 𝗣𝗿𝗼𝗱𝘂𝗰𝗲𝗱 𝗯𝘆 FF GAMESHOP"
     )
 
     await event.reply(rates_message, link_preview=False)
