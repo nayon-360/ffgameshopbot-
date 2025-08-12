@@ -578,14 +578,15 @@ PRODUCT_VARIATIONS = {
 
 # Initialize tp_users dictionary/collection
 tp_users = load_data(tp_users_collection, {})
-# Helper function to generate sequential order ID
+# Helper function for order ID
 def generate_unique_orderid(quantity=1):
     counter = order_id_counter_collection.find_one({"_id": "order_counter"})
     if not counter:
         order_id_counter_collection.insert_one({"_id": "order_counter", "last_id": 0})
         counter = {"last_id": 0}
     
-    new_id = counter["last_id"] + quantity
+    last_id = counter["last_id"]
+    new_id = last_id + quantity
     order_id_counter_collection.update_one(
         {"_id": "order_counter"},
         {"$set": {"last_id": new_id}},
@@ -860,9 +861,9 @@ async def topup_command(event):
             "",
             "**𝐄𝐯𝐨 𝐀𝐜𝐜𝐞𝐬𝐬** নিলে 👉 **𝐄𝐯𝐨𝟯 𝐄𝐯𝐨𝟳 𝐄𝐯𝐨𝟯𝟶** লিখবেন!",
             "",
-            f"যদি ২/৩/৫/১০ পিস এক সাথে টপ-আপ দিতে চান তাহলে {BOT_PREFIX}tp 2009909189 **𝟭𝟲𝟭** ২ এই ভাবে লিখবেন",
+            f"যদি ২/৩/৫/১০ পিস এক সাথে টপ-আপ দিতে চান তাহলে {BOT_PREFIX}tp 𝟭𝟴𝟿𝟵𝟵𝟵𝟵𝟵𝟵 **𝟭𝟲𝟭** ২ এই ভাবে লিখবেন",
             "",
-            "ধন্যবাদ FF GAMESHOP এর সাথে থাকার জন্য 🥰"
+            "ধন্যবাদ FF 𝐆𝐀𝐌𝐄 𝐒𝐇𝐎𝐏 এর সাথে থাকার জন্য 🥰"
         ]
         response = "\n".join(package_list)
         await event.reply(response)
@@ -965,16 +966,20 @@ async def topup_command(event):
             "┌────────────────────┐",
             f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {orderid}",
             f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-            f"│ 𝙵F 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
+            f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
             f"│ 𝚄𝙸𝙳    : {playerid}",
             "└────────────────────┘",
             "┌─────────────────────┐",
             f"│ 𝚃𝚘𝚝𝚊𝚕  : {total_cost}৳",
             f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
-            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘"
+            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP───┘"
         ]
-        initial_message = await event.reply("\n".join(initial_response_lines))
+        # Format as blockquote
+        initial_response = '' + '\n> '.join('\n'.join(initial_response_lines).split('\n'))
+        initial_message = await event.reply(initial_response)
         logger.info(f"Sent initial pending message for order {orderid} to chat {event.chat_id}, message_id {initial_message.id}")
+
+        uc_purchase = {uc_type: quantity} if uc_type else None
 
         pending_order_data = {
             "_id": str(orderid),
@@ -1007,11 +1012,11 @@ async def topup_command(event):
             }
             if is_shell_package:
                 data.update({
-                    "username": "NAYON-2090",
-                    "password": "Ff&#%@14@Wf",
-                    "autocode": "AKAHLLT5ZFEQG3FV",
-                    "tgbotid": "19029",
-                    "shell_balance": 180
+                    "username": "",
+                    "password": "",
+                    "autocode": "",
+                    "tgbotid": "1904273829",
+                    "shell_balance": 00
                 })
             try:
                 response = requests.post(TOPUP_API_URL, json=data, timeout=1000)
@@ -5180,6 +5185,7 @@ async def home(request):
     return web.Response(text="Bot is alive!")
 # New aiohttp route for the callback
 # Command: /completeorder/asd
+
 async def completeorder_callback(request):
     try:
         logger.info(f"Received /completeorder/asd callback request: {request}")
@@ -5239,25 +5245,13 @@ async def completeorder_callback(request):
                 uc_stock[uc_type]["used_codes"].extend(codes_popped)
                 uc_stock[uc_type]["stock"] -= quantity
                 save_data(uc_stock_collection, uc_stock)
-                if str(chat_id) not in baki_data[str(chat_id)]["uc_purchases"]:
-                    baki_data[str(chat_id)]["uc_purchases"] = {}
-                if uc_type and uc_type not in baki_data[str(chat_id)]["uc_purchases"]:
-                    baki_data[str(chat_id)]["uc_purchases"][uc_type] = 0
-                if uc_type:
-                    baki_data[str(chat_id)]["uc_purchases"][uc_type] += quantity
-                save_data(baki_data_collection, baki_data)
-
-            if uc_type:
-                uc_stock[uc_type]["used_codes"].extend(codes_popped)
-                uc_stock[uc_type]["stock"] -= quantity
-                save_data(uc_stock_collection, uc_stock)
 
             response_lines = [
                 f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
                 "┌────────────────────┐",
                 f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
                 f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-                f"│ 𝙵F 𝙽𝚊𝚖𝚎: {callback_nickname}",
+                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: {callback_nickname}",
                 f"│ 𝚄𝙸𝙳    : {playerid}",
                 "└────────────────────┘",
             ]
@@ -5282,7 +5276,7 @@ async def completeorder_callback(request):
             response_lines.extend([
                 "│",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘"
+                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAME SHOP───┘"
             ])
             logger.info(f"Top-up successful for order {callback_orderid}, nickname: {callback_nickname}")
 
@@ -5305,11 +5299,13 @@ async def completeorder_callback(request):
                 f"❌ 𝙴𝚛𝚛𝚘𝚛: 𝚃𝚘𝚙-𝚞𝚙 𝚜𝚎𝚛𝚟𝚒𝚌𝚎 𝚛𝚎𝚙𝚘𝚛𝚝𝚎𝚍 𝚏𝚊𝚒𝚕𝚞𝚛𝚎.",
                 "┌─────────────────────┐",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘"
+                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAME SHOP───┘"
             ]
             logger.warning(f"Top-up failed for order {callback_orderid}, status: {callback_status}")
 
-        await client.edit_message(chat_id, message_id, "\n".join(response_lines))
+        # Format as blockquote
+        final_response = '' + '\n> '.join('\n'.join(response_lines).split('\n'))
+        await client.edit_message(chat_id, message_id, final_response)
         logger.info(f"Edited message {message_id} in chat {chat_id} for order {callback_orderid}")
 
         delete_pending_topup(callback_orderid)
