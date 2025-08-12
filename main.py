@@ -4760,6 +4760,156 @@ async def pay(event):
         await event.reply(f"❌ Error: {str(e)}")
         logger.error(f"Error in /pay command for user {event.sender_id}: {str(e)}")
 # /verify কমান্ড (ম্যানুয়াল ভেরিফিকেশন) (আপডেটেড)
+@client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}verify\\s+(.+)$'))
+async def verify(event):
+    logger.info(f"Received /verify command from user {event.sender_id} with transaction ID {event.pattern_match.group(1)}")
+    if not await check_prefix(event):
+        logger.warning(f"Prefix check failed for user {event.sender_id}")
+        return
+    if is_user_signed_up(event.sender_id):
+        try:
+            drutopay_transaction_id = event.pattern_match.group(1).strip()
+            user_id = str(event.sender_id)
+
+            # Check if transaction ID has already been processed
+            if processed_transactions_collection.find_one({"transaction_id": drutopay_transaction_id}):
+                logger.warning(f"Duplicate transaction detected in /verify: {drutopay_transaction_id}")
+                await event.reply("**➥ This transaction has already been verified.**")
+                return
+
+            logger.info(f"Verifying payment for user {user_id} with DrutoPay Transaction ID {drutopay_transaction_id}")
+            verification = verify_drutopay_payment(drutopay_transaction_id)
+            logger.info(f"Verification after calling verify_drutopay_payment: {verification}, type: {type(verification)}")
+
+            if not isinstance(verification, dict):
+                logger.error(f"Verification response is not a dictionary: {verification}, type: {type(verification)}")
+                error_message = f"Verification failed: Invalid response from server: {verification}"
+                await event.reply(error_message)
+                return
+
+            if verification.get("status") == "error":
+                error_message = verification.get("message", "Unknown error")
+                logger.error(f"Verification failed for user {user_id} with DrutoPay Transaction ID {drutopay_transaction_id}: {error_message}")
+                await event.reply(f"**➥ Verification failed: {error_message}**")
+                return
+
+            status = verification.get("status")
+            if not status:
+                logger.error(f"Status missing in verification response: {verification}")
+                error_message = "Verification failed: Status missing in response. Please contact support."
+                await event.reply(error_message)
+                return
+
+            if status not in ["COMPLETED", "success", 1]:
+                error_message = verification.get("message", "Payment not completed")
+                logger.error(f"Verification failed for user {user_id} with DrutoPay Transaction ID {drutopay_transaction_id}: {error_message}")
+                await event.reply(f"**➥ Verification failed: {error_message}**")
+                return
+
+            metadata = verification.get("metadata")
+            if not metadata:
+                logger.error(f"Metadata missing in verification response: {verification}")
+                error_message = "Verification failed: Metadata missing in response. Please contact support."
+                await event.reply(error_message)
+                return
+
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                    logger.info(f"Parsed metadata from string in /verify: {metadata}, type: {type(metadata)}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse metadata string in /verify: {metadata}, error: {str(e)}")
+                    await event.reply(f"Verification failed: Invalid metadata format: {str(e)}")
+                    return
+
+            if not isinstance(metadata, dict):
+                logger.error(f"Metadata is not a dict after parsing: {metadata}, type: {type(metadata)}")
+                await event.reply(f"Verification failed: Invalid metadata format: expected dict, got {type(metadata)}")
+                return
+
+            if metadata.get("user_id") != user_id:
+                logger.warning(f"DrutoPay Transaction ID {drutopay_transaction_id} does not belong to user {user_id}")
+                error_message = "**➥ This transaction ID does not belong to you.**"
+                await event.reply(error_message)
+                return
+
+            amount = verification.get("amount")
+            if not amount:
+                logger.error(f"Amount missing in verification response: {verification}")
+                await event.reply("Verification failed: Amount missing in response. Please contact support.")
+                return
+
+            try:
+                actual_amount = float(amount)
+            except (ValueError, TypeError) as e:
+                logger.error(f"Failed to convert amount to float: {amount}, error: {str(e)}")
+                await event.reply("Verification failed: Invalid amount format.")
+                return
+
+            user = await client.get_entity(int(user_id))
+            display_name = user.first_name or user.username or "Unknown"
+
+            if user_id not in users:
+                users[user_id] = {"balance": 0, "status": "active"}
+            if user_id not in baki_data:
+                baki_data[user_id] = {"due": 0, "bakiLimit": 0, "uc_purchases": {}}
+
+            current_balance = users[user_id]["balance"]
+            current_due = baki_data[user_id]["due"]
+
+            if verification.get("status") == "COMPLETED":
+                # Store the transaction ID in processed_transactions
+                processed_transactions_collection.insert_one({
+                    "transaction_id": drutopay_transaction_id,
+                    "user_id": user_id,
+                    "amount": actual_amount,
+                    "created_at": datetime.now(BD_TIMEZONE)
+                })
+                logger.info(f"Stored transaction {drutopay_transaction_id} in processed_transactions")
+
+                # ডিউ এবং ব্যালেন্স আপডেট লজিক
+                remaining_amount = actual_amount
+                updated_due = current_due
+                updated_balance = current_balance
+
+                if current_due > 0:
+                    if remaining_amount >= current_due:
+                        remaining_amount -= current_due
+                        updated_due = 0
+                        updated_balance += remaining_amount
+                    else:
+                        updated_due -= remaining_amount
+                        remaining_amount = 0
+                else:
+                    updated_balance += remaining_amount
+
+                # ডাটা আপডেট
+                users[user_id]["balance"] = updated_balance
+                baki_data[user_id]["due"] = updated_due
+                save_data(users_collection, users)
+                save_data(baki_data_collection, baki_data)
+
+                response = (
+                    "🅿🅰🆈🅼🅴🅽🆃 🆁🅴🅲🅸🆅🅴🅳!\n\n"
+                    f"➪ Nᴀᴍᴇ        : {display_name}\n"
+                    f"➪ Yᴏᴜʀ Dᴜᴇ    : {current_due} Tᴋ\n"
+                    f"➪ Bᴀʟᴀɴᴄᴇ     : {users[user_id]['balance']} Tᴋ\n"
+                    f"➪ Rᴇᴄʹʜᴀʀɢᴇ Aᴍᴮᴱᴺᵀ   : {actual_amount} Tᴋ\n"
+                    f"➪ Pᴀʏᴮᴱᴺᵀ Mᴇᴛʜᴏᴅ   : Manual Verification\n"
+                    f"➪ Tʀᴀɴsᴀᴄᴛɪᴏɴ ID   : {drutopay_transaction_id}\n"
+                    "▔▔▔▔▔▔▔▔▔▔▔▔"
+                )
+                logger.info(f"Sending verification success message to user {user_id}")
+                await event.reply(response)
+                logger.info(f"Payment verified successfully for user {user_id} with DrutoPay Transaction ID {drutopay_transaction_id}")
+            else:
+                logger.warning(f"Payment failed or invalid status for user {user_id} with DrutoPay Transaction ID {drutopay_transaction_id}")
+                response = "**➥ Payment failed or invalid status.**"
+                await event.reply(response)
+        except Exception as e:
+            logger.error(f"Error in /verify command for user {event.sender_id}: {str(e)}")
+            error_message = f"❌ Error: {str(e)}"
+            await event.reply(error_message)
 async def drutopay_callback(request):
     try:
         logger.info(f"Received callback request: {request}")
