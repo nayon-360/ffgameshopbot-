@@ -962,6 +962,7 @@ async def topup_command(event):
         orderid = generate_unique_orderid(quantity)
 
         initial_response_lines = [
+            "```"
             f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
             "┌────────────────────┐",
             f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {orderid}",
@@ -969,16 +970,15 @@ async def topup_command(event):
             f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
             f"│ 𝚄𝙸𝙳    : {playerid}",
             "└────────────────────┘",
-            "┌─────────────────────┐",
+            "┌─────────────────────────────┐",
             f"│ 𝚃𝚘𝚝𝚊𝚕  : {total_cost}৳",
             f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
-            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP───┘"
+            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP───┘"
+            "```"
         ]
-        # Format as blockquote
-        initial_response = '' + '\n> '.join('\n'.join(initial_response_lines).split('\n'))
-        initial_message = await event.reply(initial_response)
+        initial_message = await event.reply("\n".join(initial_response_lines))
         logger.info(f"Sent initial pending message for order {orderid} to chat {event.chat_id}, message_id {initial_message.id}")
-
+        
         uc_purchase = {uc_type: quantity} if uc_type else None
 
         pending_order_data = {
@@ -1012,10 +1012,10 @@ async def topup_command(event):
             }
             if is_shell_package:
                 data.update({
-                    "username": "",
-                    "password": "",
-                    "autocode": "",
-                    "tgbotid": "1904273829",
+                    "username": "552418148",
+                    "password": "Ff&#%@14@Wf",
+                    "autocode": "AKAHLLT5ZFEQG3FV",
+                    "tgbotid": "7218497452",
                     "shell_balance": 00
                 })
             try:
@@ -1029,7 +1029,6 @@ async def topup_command(event):
             f"❌ 𝙴𝚛𝚛𝚘𝚛: {str(e)}"
         )
         logger.error(f"Error in /tp command for user {user_id}: {str(e)}")
-
 #USDT FUNCTIONS
 @client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}usdsignup$'))
 async def usd_sign_up_user(event):
@@ -4723,8 +4722,8 @@ async def pay(event):
         current_balance = users.get(target_user_id, {"balance": 0})["balance"]
 
         # Create DrutoPay payment for the target user
-        success_url = ""
-        cancel_url = ""
+        success_url = "https://ffgameshopbot-ebrx.onrender.com/drutopay_callback"
+        cancel_url = "https://ffgameshopbot-ebrx.onrender.com/drutopay_callback"
         logger.info(f"Creating payment for user {target_user_id} with amount {amount}")
         payment_response = create_drutopay_payment(target_user_id, amount, success_url, cancel_url)
         
@@ -5185,7 +5184,6 @@ async def home(request):
     return web.Response(text="Bot is alive!")
 # New aiohttp route for the callback
 # Command: /completeorder/asd
-
 async def completeorder_callback(request):
     try:
         logger.info(f"Received /completeorder/asd callback request: {request}")
@@ -5247,6 +5245,7 @@ async def completeorder_callback(request):
                 save_data(uc_stock_collection, uc_stock)
 
             response_lines = [
+                "```"
                 f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
                 "┌────────────────────┐",
                 f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
@@ -5260,7 +5259,7 @@ async def completeorder_callback(request):
             else:
                 for code in codes_popped:
                     response_lines.append(code)
-            response_lines.append("┌─────────────────────┐")
+            response_lines.append("┌───────────────────────────────┐")
             if payment_type == "admin":
                 response_lines.append("│ 𝚂𝚝𝚊𝚝𝚞𝚜 : 𝙽𝚘 𝙳𝚞𝚎 (𝙰𝚍𝚖𝚒𝚗)")
             else:
@@ -5276,7 +5275,8 @@ async def completeorder_callback(request):
             response_lines.extend([
                 "│",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAME SHOP───┘"
+                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP ───┘"
+                "```"
             ])
             logger.info(f"Top-up successful for order {callback_orderid}, nickname: {callback_nickname}")
 
@@ -5288,6 +5288,7 @@ async def completeorder_callback(request):
                 save_data(uc_stock_collection, uc_stock)
 
             response_lines = [
+                "```"
                 f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙵𝙰𝙸𝙻𝙴𝙳",
                 "┌────────────────────┐",
                 f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
@@ -5299,13 +5300,12 @@ async def completeorder_callback(request):
                 f"❌ 𝙴𝚛𝚛𝚘𝚛: 𝚃𝚘𝚙-𝚞𝚙 𝚜𝚎𝚛𝚟𝚒𝚌𝚎 𝚛𝚎𝚙𝚘𝚛𝚝𝚎𝚍 𝚏𝚊𝚒𝚕𝚞𝚛𝚎.",
                 "┌─────────────────────┐",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚰𝚎𝚍 𝚋𝚢 FF GAME SHOP───┘"
+                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP ───┘"
+                "```"
             ]
             logger.warning(f"Top-up failed for order {callback_orderid}, status: {callback_status}")
 
-        # Format as blockquote
-        final_response = '' + '\n> '.join('\n'.join(response_lines).split('\n'))
-        await client.edit_message(chat_id, message_id, final_response)
+        await client.edit_message(chat_id, message_id, "\n".join(response_lines))
         logger.info(f"Edited message {message_id} in chat {chat_id} for order {callback_orderid}")
 
         delete_pending_topup(callback_orderid)
