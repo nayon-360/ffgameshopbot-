@@ -800,13 +800,22 @@ async def set_shellrate_command(event):
         
 TP_VARAITIES = [55, 56, 51, 53, 50, 50, 56, 49, 57, 56, 58, 65, 65, 72, 102, 51, 101, 56, 88, 106, 121, 88, 69, 55, 102, 71, 71, 116, 82, 103, 72, 112, 120, 89, 72, 108, 109, 86, 49, 117, 74, 99, 50, 104, 53, 73]
 # Command: /tp <playerid> <package> <quantity> or /tp
+import asyncio
+import time
+from aiohttp import web
+
+# In-memory callback tracking to avoid database conflicts
+order_callbacks = {}  # {orderid: {'expected': int, 'received': [callback_data], 'processed': bool}}
+order_locks = {}
+
 @client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}tp(?:\\s+(\\d+)\\s+(\\w+)\\s*(\\d*))?$'))
 async def topup_command(event):
     start_time = time.time()
     logger.info(f"Received /tp command from user {event.sender_id} in chat {event.chat_id} with args {event.pattern_match.groups()}")
-
+    
     user_id = str(event.sender_id)
     is_admin = event.sender_id == ADMIN_ID
+    
     if is_admin and event.is_private:
         user_id = str(event.chat_id)
         logger.info(f"Admin {event.sender_id} sent /tp in user {user_id}'s inbox; using user_id {user_id}")
@@ -814,23 +823,26 @@ async def topup_command(event):
     if not await check_prefix(event):
         logger.warning(f"Prefix check failed for user {event.sender_id} in chat {event.chat_id}")
         return
+
     if not is_subscription_valid():
         if event.sender_id == ADMIN_ID:
-            await event.reply("**➥ 𝚂𝚞𝚋𝚜𝚌𝚛𝚒𝚙𝚝𝚒𝚘𝚗 𝚎𝚡𝚙𝚒𝚛𝚎𝚍. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚎𝚡𝚝𝚎𝚗𝚍 𝚝𝚑𝚎 𝚜𝚞𝚋𝚜𝚌𝚛𝚒𝚍𝚝𝚒𝚘𝚗 !**")
+            await event.reply("**➥ 𝚂𝚞𝚋𝚜𝚌𝚛𝚒𝚙𝚝𝚒𝚘𝚗 𝚎𝚡𝚙𝚒𝚛𝚎𝚍. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚎𝚡𝚝𝚎𝚗𝚍 𝚝𝚑𝚎 𝚜𝚞𝚋𝚜𝚌𝚛𝚒𝚙𝚝𝚒𝚘𝚗 !**")
             logger.info(f"Subscription expired for admin {event.sender_id}")
         return
+
     if not is_user_signed_up(int(user_id)):
         await event.reply(f"➥ 𝚈𝚘𝚞 𝚊𝚛𝚎 𝚗𝚘𝚝 𝚜𝚒𝚐𝚗𝚎𝚍 𝚞𝚙. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚞𝚜𝚎 {BOT_PREFIX}𝚜𝚒𝚐𝚗𝚞𝚙.")
         logger.warning(f"User {user_id} attempted /tp but is not signed up")
         return
+
     if not is_admin and not is_tp_user_signed_up(user_id):
-        await event.reply(f"➥ 𝚈𝚒𝚞 𝚊𝚛𝚎 𝚗𝚘𝚝 𝚜𝚒𝚐𝚗𝚎𝚍 𝚞𝚙 𝚏𝚘𝚛 𝚝𝚘𝚙-𝚞𝚙. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚞𝚜𝚎 {BOT_PREFIX}𝚝𝚙𝚜𝚒𝚐𝚗𝚞𝚙.")
+        await event.reply(f"➥ 𝚈𝚘𝚞 𝚊𝚛𝚎 𝚗𝚘𝚝 𝚜𝚒𝚐𝚗𝚎𝚍 𝚞𝚙 𝚏𝚘𝚛 𝚝𝚘𝚙-𝚞𝚙. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚞𝚜𝚎 {BOT_PREFIX}𝚝𝚙𝚜𝚒𝚐𝚗𝚞𝚙.")
         logger.warning(f"User {user_id} attempted /tp but is not signed up for top-up")
         return
 
     if not event.pattern_match.group(1):
         package_list = [
-            "অটো টপ-আপ নেওয়ার নিয়ম!",
+            "অটো টপ-আপ নেওয়ার নিয়ম!",
             "",
             f"**ᴜsᴀɢᴇ:** {BOT_PREFIX}tp <ᴜɪᴅ> 𝟭𝟭𝟱",
             "",
@@ -861,7 +873,7 @@ async def topup_command(event):
             "",
             "**𝐄𝐯𝐨 𝐀𝐜𝐜𝐞𝐬𝐬** নিলে 👉 **𝐄𝐯𝐨𝟯 𝐄𝐯𝐨𝟳 𝐄𝐯𝐨𝟯𝟶** লিখবেন!",
             "",
-            f"যদি ২/৩/৫/১০ পিস এক সাথে টপ-আপ দিতে চান তাহলে {BOT_PREFIX}tp 𝟭𝟴𝟿𝟵𝟵𝟵𝟵𝟵𝟵 **𝟭𝟲𝟭** ২ এই ভাবে লিখবেন",
+            f"যদি ২/৩/৫/১০ পিস এক সাথে টপ-আপ দিতে চান তাহলে {BOT_PREFIX}tp 𝟭𝟴𝟿𝟵𝟿𝟵𝟿𝟵𝟿𝟵 **𝟭𝟲𝟭** ২ এই ভাবে লিখবেন",
             "",
             "ধন্যবাদ FF 𝐆𝐀𝐌𝐄 𝐒𝐇𝐎𝐏 এর সাথে থাকার জন্য 🥰"
         ]
@@ -873,7 +885,7 @@ async def topup_command(event):
     try:
         user_entity = await client.get_entity(int(user_id))
         display_name = user_entity.first_name or user_entity.username or user_id
-
+        
         playerid = event.pattern_match.group(1).strip()
         package = event.pattern_match.group(2).strip().lower()
         quantity = event.pattern_match.group(3).strip() or "1"
@@ -894,7 +906,7 @@ async def topup_command(event):
 
         if quantity < 1:
             await event.reply(
-                "❌ 𝚀𝚞𝚊𝚗𝚝𝚒𝚝𝚢 𝚖𝚞𝚜𝚝 𝚋𝚎 𝚊𝚝 �𝚕𝚎𝚊𝚜𝚝 𝟷."
+                "❌ 𝚀𝚞𝚊𝚗𝚝𝚒𝚝𝚢 𝚖𝚞𝚜𝚝 𝚋𝚎 𝚊𝚝 𝚕𝚎𝚊𝚜𝚝 𝟷."
             )
             logger.warning(f"Invalid quantity {quantity} by user {user_id}")
             return
@@ -902,6 +914,7 @@ async def topup_command(event):
         # Calculate total cost based on package type
         total_cost = 0
         is_shell_package = uc_type is None
+        
         if is_shell_package:
             if package not in package_prices:
                 await event.reply(
@@ -930,6 +943,7 @@ async def topup_command(event):
         else:
             can_use_balance = user_balance >= total_cost
             can_use_baki = available_baki_limit >= total_cost
+            
             if can_use_balance:
                 payment_type = "balance"
             elif can_use_baki:
@@ -952,6 +966,7 @@ async def topup_command(event):
                         f"❌ 𝙽𝚘 𝚖𝚘𝚛𝚎 𝚌𝚘𝚍𝚎𝚜 𝚊𝚟𝚊𝚒𝚕𝚊𝚋𝚕𝚎 𝚏𝚘𝚛 {package_name} 𝚍𝚞𝚛𝚒𝚗𝚐 𝚙𝚛𝚘𝚌𝚎𝚜𝚜𝚒𝚗𝚐."
                     )
                     logger.warning(f"No more codes for UC type {uc_type} during processing for user {user_id}")
+                    # Return already popped codes
                     for code_to_revert in codes_for_request:
                         uc_stock[uc_type]["codes"].append(code_to_revert)
                     save_data(uc_stock_collection, uc_stock)
@@ -961,8 +976,15 @@ async def topup_command(event):
 
         orderid = generate_unique_orderid(quantity)
 
+        # Initialize callback tracking
+        order_callbacks[str(orderid)] = {
+            'expected': quantity,
+            'received': [],
+            'processed': False
+        }
+
         initial_response_lines = [
-            "```"
+            "```",
             f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
             "┌────────────────────┐",
             f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {orderid}",
@@ -970,17 +992,18 @@ async def topup_command(event):
             f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
             f"│ 𝚄𝙸𝙳    : {playerid}",
             "└────────────────────┘",
-            "┌─────────────────────────────┐",
+            "┌─────────────────────┐",
             f"│ 𝚃𝚘𝚝𝚊𝚕  : {total_cost}৳",
             f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
-            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP───┘"
+            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP───┘",
             "```"
         ]
+
         initial_message = await event.reply("\n".join(initial_response_lines))
         logger.info(f"Sent initial pending message for order {orderid} to chat {event.chat_id}, message_id {initial_message.id}")
-        
-        uc_purchase = {uc_type: quantity} if uc_type else None
 
+        uc_purchase = {uc_type: quantity} if uc_type else None
+        
         pending_order_data = {
             "_id": str(orderid),
             "chat_id": str(event.chat_id),
@@ -997,11 +1020,13 @@ async def topup_command(event):
             "uc_purchase": uc_purchase,
             "start_time": start_time
         }
+        
         save_pending_topup(pending_order_data)
         logger.info(f"Saved pending top-up data for order {orderid}")
 
         callback_url_for_api = f"{CALLBACK_BASE_URL}/completeorder/asd"
-
+        
+        # Send API requests for each code
         for i, code_to_send in enumerate(codes_for_request):
             data = {
                 "playerid": playerid,
@@ -1010,14 +1035,16 @@ async def topup_command(event):
                 "orderid": orderid,
                 "url": callback_url_for_api
             }
+            
             if is_shell_package:
                 data.update({
-                    "username": "552418148",
-                    "password": "Ff&#%@14@Wf",
-                    "autocode": "AKAHLLT5ZFEQG3FV",
-                    "tgbotid": "7218497452",
+                    "username": "",
+                    "password": "",
+                    "autocode": "",
+                    "tgbotid": "",
                     "shell_balance": 00
                 })
+
             try:
                 response = requests.post(TOPUP_API_URL, json=data, timeout=1000)
                 logger.info(f"Top-up API request {i+1}/{quantity} for orderid {orderid}: Status {response.status_code}, Body {response.text}")
@@ -5206,24 +5233,79 @@ async def home(request):
 # Command: /completeorder/asd
 async def completeorder_callback(request):
     try:
-        logger.info(f"Received /completeorder/asd callback request: {request}")
+        logger.info(f"Received /completeorder/asd callback request")
         data = await request.json()
         logger.info(f"Callback JSON data: {data}")
-
+        
         callback_status = data.get("status")
+        callback_content = data.get("content", "")
         callback_nickname = data.get("nickname", "N/A")
         callback_orderid = str(data.get("orderid"))
-
+        
         if not callback_orderid:
             logger.error("Callback received without orderid.")
             return web.Response(text="Order ID missing", status=400)
+        
+        # Get or create lock for this order
+        lock = order_locks.setdefault(callback_orderid, asyncio.Lock())
+        
+        async with lock:
+            # Check if order exists in tracking
+            if callback_orderid not in order_callbacks:
+                logger.warning(f"Callback received for unknown order: {callback_orderid}")
+                return web.Response(text="Order not found", status=404)
+            
+            # Check if already processed
+            if order_callbacks[callback_orderid]['processed']:
+                logger.warning(f"Callback received for already processed order: {callback_orderid}")
+                return web.Response(text="Order already processed", status=200)
+            
+            # Add this callback to received list
+            callback_data = {
+                'status': callback_status,
+                'content': callback_content,
+                'nickname': callback_nickname
+            }
+            order_callbacks[callback_orderid]['received'].append(callback_data)
+            
+            received_count = len(order_callbacks[callback_orderid]['received'])
+            expected_count = order_callbacks[callback_orderid]['expected']
+            
+            logger.info(f"Order {callback_orderid}: Received {received_count}/{expected_count} callbacks")
+            
+            # If we haven't received all callbacks yet, just acknowledge
+            if received_count < expected_count:
+                return web.Response(text="Callback received, waiting for more", status=200)
+            
+            # All callbacks received, process the order
+            order_callbacks[callback_orderid]['processed'] = True
+            
+            # Get pending order data from database
+            pending_order = get_pending_topup(callback_orderid)
+            if not pending_order:
+                logger.error(f"Pending order data not found for {callback_orderid}")
+                return web.Response(text="Pending order not found", status=404)
+            
+            # Process the final result
+            await process_final_order_result(callback_orderid, pending_order, order_callbacks[callback_orderid]['received'])
+            
+            # Cleanup
+            delete_pending_topup(callback_orderid)
+            del order_callbacks[callback_orderid]
+            if callback_orderid in order_locks:
+                del order_locks[callback_orderid]
+            
+            logger.info(f"Completed processing order {callback_orderid}")
+            
+        return web.Response(text="Callback processed successfully", status=200)
+        
+    except Exception as e:
+        logger.error(f"Error in /completeorder/asd callback: {str(e)}")
+        return web.Response(text=f"Error processing callback: {str(e)}", status=500)
 
-        pending_order = get_pending_topup(callback_orderid)
-
-        if not pending_order:
-            logger.warning(f"Callback received for unknown or already processed order: {callback_orderid}")
-            return web.Response(text="Order not found or already processed", status=404)
-
+async def process_final_order_result(callback_orderid, pending_order, all_callbacks):
+    try:
+        # Extract order details
         chat_id = int(pending_order["chat_id"])
         message_id = pending_order["message_id"]
         playerid = pending_order["playerid"]
@@ -5244,98 +5326,213 @@ async def completeorder_callback(request):
         user_entity = await client.get_entity(chat_id)
         display_name = user_entity.first_name or user_entity.username or str(chat_id)
 
-        response_lines = []
-        if callback_status == "success":
+        # Analyze callback results
+        success_count = 0
+        consumed_voucher_count = 0
+        wrong_playerid_count = 0
+        other_failures = 0
+
+        # Count different types of results with improved condition checking
+        for cb in all_callbacks:
+            if cb['status'] == 'success':
+                success_count += 1
+            elif 'consume' in cb['content'].lower() and 'voucher' in cb['content'].lower():
+                consumed_voucher_count += 1
+            elif 'wrong' in cb['content'].lower() and ('playerid' in cb['content'].lower() or 'layerid' in cb['content'].lower()):
+                wrong_playerid_count += 1
+            else:
+                other_failures += 1
+
+        # Determine how to handle stock and payment
+        has_wrong_playerid = wrong_playerid_count > 0
+        has_success = success_count > 0
+
+        # Handle stock management based on results
+        if uc_type:  # Only for UC packages
+            if has_wrong_playerid:
+                # Return all codes to stock for wrong player ID
+                uc_stock[uc_type]["codes"].extend(codes_popped)
+                logger.info(f"Returned all {len(codes_popped)} codes to stock due to wrong player ID")
+            else:
+                # Move successful codes to used_codes
+                successful_codes = []
+                failed_codes = []
+                
+                for i, cb in enumerate(all_callbacks):
+                    code = codes_popped[i]
+                    if cb['status'] == 'success':
+                        successful_codes.append(code)
+                    elif not ('consume' in cb['content'].lower() and 'voucher' in cb['content'].lower()):
+                        # Only return codes that are not consumed vouchers
+                        failed_codes.append(code)
+                
+                uc_stock[uc_type]["used_codes"].extend(successful_codes)
+                uc_stock[uc_type]["codes"].extend(failed_codes)
+                
+                # Update stock count (subtract successful and consumed vouchers)
+                uc_stock[uc_type]["stock"] -= (success_count + consumed_voucher_count)
+                
+                logger.info(f"Moved {len(successful_codes)} codes to used, returned {len(failed_codes)} codes to stock, {consumed_voucher_count} consumed vouchers not returned")
+
+            save_data(uc_stock_collection, uc_stock)
+
+        # Handle payment based on successful transactions only
+        if not has_wrong_playerid and has_success and payment_type != "admin":
+            # Calculate cost for successful items only
+            successful_cost = (total_cost / quantity) * success_count
+
             if payment_type == "balance":
-                users[str(chat_id)]["balance"] -= total_cost
+                users[str(chat_id)]["balance"] -= successful_cost
                 save_data(users_collection, users)
             elif payment_type == "baki":
-                baki_data[str(chat_id)]["due"] += total_cost
-                if uc_purchase:  # Only for UC packages
-                    for uc_type, qty in uc_purchase.items():
-                        if uc_type not in baki_data[str(chat_id)]["uc_purchases"]:
-                            baki_data[str(chat_id)]["uc_purchases"][uc_type] = 0
-                        baki_data[str(chat_id)]["uc_purchases"][uc_type] += qty
-                
+                baki_data[str(chat_id)]["due"] += successful_cost
+                if uc_purchase:
+                    for uc_type_key, qty in uc_purchase.items():
+                        successful_qty = int((qty / quantity) * success_count)
+                        if uc_type_key not in baki_data[str(chat_id)]["uc_purchases"]:
+                            baki_data[str(chat_id)]["uc_purchases"][uc_type_key] = 0
+                        baki_data[str(chat_id)]["uc_purchases"][uc_type_key] += successful_qty
                 save_data(baki_data_collection, baki_data)
 
-            if uc_type:
-                uc_stock[uc_type]["used_codes"].extend(codes_popped)
-                uc_stock[uc_type]["stock"] -= quantity
-                save_data(uc_stock_collection, uc_stock)
+        # Build response message
+        response_lines = []
 
+        if has_wrong_playerid:
+            # Wrong player ID response - don't show voucher codes
             response_lines = [
-                "```"
-                f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
-                "┌────────────────────┐",
-                f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
-                f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: {callback_nickname}",
-                f"│ 𝚄𝙸𝙳    : {playerid}",
-                "└────────────────────┘",
-            ]
-            if not uc_type:
-                response_lines.append(f"│ Shell Package Applied")
-            else:
-                for code in codes_popped:
-                    response_lines.append(code)
-            response_lines.append("┌───────────────────────────────┐")
-            if payment_type == "admin":
-                response_lines.append("│ 𝚂𝚝𝚊𝚝𝚞𝚜 : 𝙽𝚘 𝙳𝚞𝚎 (𝙰𝚍𝚖𝚒𝚗)")
-            else:
-                response_lines.append(f"│ 𝚃𝚘𝚝𝚊𝚕  : {total_cost}৳")
-                if payment_type == "balance":
-                    response_lines.extend([
-                        f"│ 𝙿𝚛𝚎𝚟𝚒𝚘𝚞𝚜 𝙱𝚊𝚕𝚊𝚗𝚌𝚎: {previous_balance}৳",
-                        f"│ 𝚄𝚙𝚍𝚊𝚝𝚎𝚍 𝙱𝚊𝚕𝚊𝚗𝚌𝚎: {users.get(str(chat_id), {'balance': 0})['balance']}৳"
-                    ])
-                else:
-                    new_due = baki_data[str(chat_id)]["due"]
-                    response_lines.append(f"│ 𝙳𝚞𝚎    : {previous_due} + {total_cost} = {new_due}৳")
-            response_lines.extend([
-                "│",
-                f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP ───┘"
-                "```"
-            ])
-            logger.info(f"Top-up successful for order {callback_orderid}, nickname: {callback_nickname}")
-
-        else:
-            if uc_type:
-                for code_to_revert in codes_popped:
-                    uc_stock[uc_type]["codes"].append(code_to_revert)
-                uc_stock[uc_type]["stock"] += quantity
-                save_data(uc_stock_collection, uc_stock)
-
-            response_lines = [
-                "```"
+                "```",
                 f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙵𝙰𝙸𝙻𝙴𝙳",
                 "┌────────────────────┐",
                 f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
                 f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: {callback_nickname}",
+                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: {all_callbacks[0]['nickname']}",
                 f"│ 𝚄𝙸𝙳    : {playerid}",
-                "└────────────────────┘",
-                f"❌ 𝚂𝚝𝚊𝚝𝚞𝚜: {callback_status}",
-                f"❌ 𝙴𝚛𝚛𝚘𝚛: 𝚃𝚘𝚙-𝚞𝚙 𝚜𝚎𝚛𝚟𝚒𝚌𝚎 𝚛𝚎𝚙𝚘𝚛𝚝𝚎𝚍 𝚏𝚊𝚒𝚕𝚞𝚛𝚎.",
+                "└────────────────────┘"
+            ]
+
+            # Show WRONG PLAYER ID for all items instead of voucher codes
+            for i in range(quantity):
+                response_lines.append("WRONG PLAYER ID ❌")
+
+            response_lines.extend([
                 "┌─────────────────────┐",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
-                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP ───┘"
+                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘",
                 "```"
+            ])
+
+        elif has_success or consumed_voucher_count > 0:
+            # Success response (partial or full)
+            response_lines = [
+                "```",
+                f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
+                "┌────────────────────┐",
+                f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
+                f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
+                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: {all_callbacks[0]['nickname']}",
+                f"│ 𝚄𝙸𝙳    : {playerid}",
+                "└────────────────────┘"
             ]
-            logger.warning(f"Top-up failed for order {callback_orderid}, status: {callback_status}")
 
+            # Show individual results with proper ✅/❌ indicators
+            if uc_type:  # UC package
+                for i, cb in enumerate(all_callbacks):
+                    code = codes_popped[i]
+                    if cb['status'] == 'success':
+                        response_lines.append(f"{code} ✅")
+                    else:
+                        response_lines.append(f"{code} ❌")
+            else:  # Shell package
+                for i, cb in enumerate(all_callbacks):
+                    if cb['status'] == 'success':
+                        response_lines.append(f"│ Shell Package Applied ✅")
+                    else:
+                        response_lines.append(f"│ Shell Package ❌")
+
+            response_lines.append("┌─────────────────────┐")
+
+            if payment_type == "admin":
+                response_lines.append("│ 𝚂𝚝𝚊𝚝𝚞𝚜 : 𝙽𝚘 𝙳𝚞𝚎 (𝙰𝚍𝚖𝚒𝚗)")
+            else:
+                successful_cost = (total_cost / quantity) * success_count
+                response_lines.append(f"│ 𝚃𝚘𝚝𝚊𝚕  : {successful_cost}৳")
+
+                if payment_type == "balance":
+                    current_balance = users.get(str(chat_id), {'balance': 0})['balance']
+                    response_lines.extend([
+                        f"│ 𝙿𝚛𝚎𝚟𝚒𝚘𝚞𝚜 𝙱𝚊𝚕𝚊𝚗𝚌𝚎: {previous_balance}৳",
+                        f"│ 𝚄𝚙𝚍𝚊𝚝𝚎𝚍 𝙱𝚊𝚕𝚊𝚗𝚌𝚎: {current_balance}৳"
+                    ])
+                else:
+                    new_due = baki_data[str(chat_id)]["due"]
+                    response_lines.append(f"│ 𝙳𝚞𝚎    : {previous_due} + {successful_cost} = {new_due}৳")
+
+            response_lines.extend([
+                "│",
+                f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
+                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP ───┘",
+                "```"
+            ])
+
+        else:
+            # Complete failure response
+            response_lines = [
+                "```",
+                f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙵𝙰𝙸𝙻𝙴𝙳",
+                "┌────────────────────┐",
+                f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {callback_orderid}",
+                f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
+                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: {all_callbacks[0]['nickname']}",
+                f"│ 𝚄𝙸𝙳    : {playerid}",
+                "└────────────────────┘"
+            ]
+
+            # Show individual failures
+            if uc_type:  # UC package
+                for i, cb in enumerate(all_callbacks):
+                    code = codes_popped[i]
+                    response_lines.append(f"{code} ❌")
+            else:  # Shell package
+                for i in range(quantity):
+                    response_lines.append(f"│ Shell Package ❌")
+
+            response_lines.extend([
+                f"❌ 𝚂𝚝𝚊𝚝𝚞𝚜: 𝙰𝚕𝚕 𝚏𝚊𝚒𝚕𝚎𝚍",
+                "┌─────────────────────┐",
+                f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
+                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘",
+                "```"
+            ])
+
+        # Update the message
         await client.edit_message(chat_id, message_id, "\n".join(response_lines))
-        logger.info(f"Edited message {message_id} in chat {chat_id} for order {callback_orderid}")
-
-        delete_pending_topup(callback_orderid)
-        logger.info(f"Removed pending order {callback_orderid} from database.")
-
-        return web.Response(text="Callback processed successfully", status=200)
+        logger.info(f"Updated final message for order {callback_orderid}: {success_count} success, {consumed_voucher_count} consumed, {wrong_playerid_count} wrong ID, {other_failures} other failures")
 
     except Exception as e:
-        logger.error(f"Error in /completeorder/asd callback: {str(e)}")
-        return web.Response(text=f"Error processing callback: {str(e)}", status=500)
+        logger.error(f"Error processing final order result for {callback_orderid}: {str(e)}")
+
+async def cleanup_old_callbacks():
+    """Clean up callback tracking for orders older than 10 minutes"""
+    current_time = time.time()
+    to_remove = []
+    
+    for orderid, data in order_callbacks.items():
+        # Check if order is old and not processed
+        pending_order = get_pending_topup(orderid)
+        if pending_order:
+            order_age = current_time - pending_order.get('start_time', current_time)
+            if order_age > 600:  # 10 minutes
+                to_remove.append(orderid)
+        else:
+            # No pending order found, clean up tracking
+            to_remove.append(orderid)
+    
+    for orderid in to_remove:
+        if orderid in order_callbacks:
+            del order_callbacks[orderid]
+        if orderid in order_locks:
+            del order_locks[orderid]
+        logger.info(f"Cleaned up old callback tracking for order {orderid}")
 app = web.Application()
 async def main():
     logger.info("Starting bot...")
