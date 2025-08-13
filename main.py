@@ -989,12 +989,12 @@ async def topup_command(event):
             "┌────────────────────┐",
             f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {orderid}",
             f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-            f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
+            f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 🅟🅔🅝🅓🅘🅝🅖",
             f"│ 𝚄𝙸𝙳    : {playerid}",
             "└────────────────────┘",
             "┌─────────────────────┐",
             f"│ 𝚃𝚘𝚝𝚊𝚕  : {total_cost}৳",
-            f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
+            f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 🅟🅔🅝🅓🅘🅝🅖",
             "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP───┘",
             "```"
         ]
@@ -1038,10 +1038,10 @@ async def topup_command(event):
             
             if is_shell_package:
                 data.update({
-                    "username": "",
-                    "password": "",
-                    "autocode": "",
-                    "tgbotid": "",
+                    "username": "552418148",
+                    "password": "Ff&#%@14@Wf",
+                    "autocode": "AKAHLLT5ZFEQG3FV",
+                    "tgbotid": "7218497452",
                     "shell_balance": 00
                 })
 
@@ -5412,7 +5412,7 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
 
             # Show WRONG PLAYER ID for all items instead of voucher codes
             for i in range(quantity):
-                response_lines.append("WRONG PLAYER ID ❌")
+                response_lines.append("𝚆𝚁𝙾𝙽𝙶 𝙿𝙻𝙰𝚈𝙴𝚁 𝙸𝙳 🅧︎")
 
             response_lines.extend([
                 "┌─────────────────────┐",
@@ -5439,15 +5439,15 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                 for i, cb in enumerate(all_callbacks):
                     code = codes_popped[i]
                     if cb['status'] == 'success':
-                        response_lines.append(f"{code} ✅")
+                        response_lines.append(f"{code} ✓︎")
                     else:
-                        response_lines.append(f"{code} ❌")
+                        response_lines.append(f"{code} 🅧︎")
             else:  # Shell package
                 for i, cb in enumerate(all_callbacks):
                     if cb['status'] == 'success':
-                        response_lines.append(f"│ Shell Package Applied ✅")
+                        response_lines.append(f"│ 𝚂𝚑𝚎𝚕𝚕 𝙿𝚊𝚌𝚔𝚊𝚐𝚎 𝙰𝚙𝚙𝚕𝚒𝚎𝚍 ✓︎")
                     else:
-                        response_lines.append(f"│ Shell Package ❌")
+                        response_lines.append(f"│ 𝚂𝚑𝚎𝚕𝚕 𝙿𝚊𝚌𝚔𝚊𝚐𝚎 𝙵𝚊𝚒𝚕𝚎𝚍 🅧︎")
 
             response_lines.append("┌─────────────────────┐")
 
@@ -5491,13 +5491,13 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
             if uc_type:  # UC package
                 for i, cb in enumerate(all_callbacks):
                     code = codes_popped[i]
-                    response_lines.append(f"{code} ❌")
+                    response_lines.append(f"{code} 🅧︎")
             else:  # Shell package
                 for i in range(quantity):
-                    response_lines.append(f"│ Shell Package ❌")
+                    response_lines.append(f"│ Shell Package 🅧︎")
 
             response_lines.extend([
-                f"❌ 𝚂𝚝𝚊𝚝𝚞𝚜: 𝙰𝚕𝚕 𝚏𝚊𝚒𝚕𝚎𝚍",
+                f"🅧︎ 𝚂𝚝𝚊𝚝𝚞𝚜: 𝙰𝚕𝚕 𝚏𝚊𝚒𝚕𝚎𝚍",
                 "┌─────────────────────┐",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
                 "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘",
