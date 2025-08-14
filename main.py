@@ -802,9 +802,6 @@ TP_VARAITIES = [55, 56, 51, 53, 50, 50, 56, 49, 57, 56, 58, 65, 65, 72, 102, 51,
 # Command: /tp <playerid> <package> <quantity> or /tp
 import asyncio
 import time
-from aiohttp import web
-import asyncio
-import time
 import requests
 from telethon import TelegramClient, events
 from aiohttp import web
@@ -815,6 +812,7 @@ user_locks = {}  # User-specific locks to prevent race conditions
 reserved_funds = {}  # Track reserved funds per user
 order_callbacks = {}  # Track callback expectations
 order_locks = {}  # Order-specific locks
+pending_orders_tracking = {}  # Track pending orders with timestamps
 
 # Package aliases mapping
 PACKAGE_ALIASES = {
@@ -1148,6 +1146,14 @@ async def topup_command(event):
             }
             
             save_pending_topup(pending_order_data)
+            
+            pending_orders_tracking[str(orderid)] = {
+                'start_time': start_time,
+                'user_id': user_id,
+                'reserved_amount': total_cost if payment_type != "admin" else 0,
+                'payment_type': payment_type
+            }
+            
             logger.info(f"Saved pending top-up data for order {orderid}")
             
             callback_url_for_api = f"{CALLBACK_BASE_URL}/completeorder/asd"
@@ -5360,7 +5366,6 @@ async def home(request):
     logger.info(f"Received request on / route: {request}")
     return web.Response(text="Bot is alive!")
 # New aiohttp route for the callback
-# Start the cleanup task when the bot starts
 async def completeorder_callback(request):
     try:
         logger.info(f"Received /completeorder/asd callback request")
@@ -5424,6 +5429,8 @@ async def completeorder_callback(request):
             del order_callbacks[callback_orderid]
             if callback_orderid in order_locks:
                 del order_locks[callback_orderid]
+            if callback_orderid in pending_orders_tracking:
+                del pending_orders_tracking[callback_orderid]
             
             logger.info(f"Completed processing order {callback_orderid}")
         
@@ -5627,6 +5634,10 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
         
         # Update the message
         await client.edit_message(chat_id, message_id, "\n".join(response_lines))
+        
+        if callback_orderid in pending_orders_tracking:
+            del pending_orders_tracking[callback_orderid]
+        
         logger.info(f"Updated final message for order {callback_orderid}: {success_count} success, {consumed_voucher_count} consumed, {wrong_playerid_count} wrong ID, {other_failures} other failures")
     
     except Exception as e:
@@ -5660,16 +5671,12 @@ async def cleanup_old_reservations():
     current_time = time.time()
     to_remove = []
     
-    # Get all pending orders
-    pending_orders = get_all_pending_topups()  # You need to implement this function
-    
-    for pending_order in pending_orders:
-        order_age = current_time - pending_order.get('start_time', current_time)
+    for orderid, order_info in pending_orders_tracking.items():
+        order_age = current_time - order_info.get('start_time', current_time)
         if order_age > 900:  # 15 minutes
-            orderid = pending_order.get('_id')
-            user_id = pending_order.get('user_id')
-            reserved_amount = pending_order.get('reserved_amount', 0)
-            payment_type = pending_order.get('payment_type')
+            user_id = order_info.get('user_id')
+            reserved_amount = order_info.get('reserved_amount', 0)
+            payment_type = order_info.get('payment_type')
             
             if reserved_amount > 0 and payment_type != "admin":
                 release_funds(user_id, reserved_amount, payment_type)
@@ -5684,6 +5691,8 @@ async def cleanup_old_reservations():
             del order_callbacks[orderid]
         if orderid in order_locks:
             del order_locks[orderid]
+        if orderid in pending_orders_tracking:
+            del pending_orders_tracking[orderid]
         logger.info(f"Cleaned up expired order {orderid}")
 
 # Add periodic cleanup task
