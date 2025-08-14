@@ -803,10 +803,110 @@ TP_VARAITIES = [55, 56, 51, 53, 50, 50, 56, 49, 57, 56, 58, 65, 65, 72, 102, 51,
 import asyncio
 import time
 from aiohttp import web
+import asyncio
+import time
+import requests
+from telethon import TelegramClient, events
+from aiohttp import web
+import logging
 
-# In-memory callback tracking to avoid database conflicts
-order_callbacks = {}  # {orderid: {'expected': int, 'received': [callback_data], 'processed': bool}}
-order_locks = {}
+# Add these new global variables at the top
+user_locks = {}  # User-specific locks to prevent race conditions
+reserved_funds = {}  # Track reserved funds per user
+order_callbacks = {}  # Track callback expectations
+order_locks = {}  # Order-specific locks
+
+# Package aliases mapping
+PACKAGE_ALIASES = {
+    # 25 UC package aliases
+    "25": "25",
+    "20": "25",
+    
+    # 50 UC package aliases  
+    "50": "50",
+    "36": "50",
+    
+    # 115 UC package aliases
+    "115": "115", 
+    "80": "115",
+    
+    # 240 UC package aliases
+    "240": "240",
+    "160": "240",
+    
+    # 610 UC package aliases
+    "610": "610",
+    "405": "610",
+    
+    # 1240 UC package aliases
+    "1240": "1240",
+    "810": "1240",
+    
+    # 2530 UC package aliases
+    "2530": "2530",
+    "1625": "2530",
+    
+    # Weekly package aliases
+    "161": "161",
+    "weekly": "161",
+    "Weekly": "161",
+    
+    # Monthly package aliases
+    "800": "800",
+    "monthly": "800",
+    "Monthly": "800",
+    
+    # Add other existing packages that don't have aliases
+    "lite": "lite",
+    "Lite": "lite",
+    "lvl6": "lvl6",
+    "lvl10": "lvl10", 
+    "lvl15": "lvl15",
+    "lvl20": "lvl20",
+    "lvl25": "lvl25",
+    "lvl30": "lvl30",
+    "evo3": "evo3",
+    "evo7": "evo7", 
+    "evo30": "evo30"
+}
+
+def get_user_lock(user_id):
+    """Get or create a lock for a specific user"""
+    if user_id not in user_locks:
+        user_locks[user_id] = asyncio.Lock()
+    return user_locks[user_id]
+
+def reserve_funds(user_id, amount, payment_type):
+    """Reserve funds for a user"""
+    if user_id not in reserved_funds:
+        reserved_funds[user_id] = {"balance": 0, "baki": 0}
+    
+    reserved_funds[user_id][payment_type] += amount
+    logger.info(f"Reserved {amount}৳ ({payment_type}) for user {user_id}. Total reserved: {reserved_funds[user_id]}")
+
+def release_funds(user_id, amount, payment_type):
+    """Release reserved funds for a user"""
+    if user_id in reserved_funds:
+        reserved_funds[user_id][payment_type] = max(0, reserved_funds[user_id][payment_type] - amount)
+        
+        # Clean up if no funds are reserved
+        if reserved_funds[user_id]["balance"] == 0 and reserved_funds[user_id]["baki"] == 0:
+            del reserved_funds[user_id]
+        
+        logger.info(f"Released {amount}৳ ({payment_type}) for user {user_id}")
+
+def get_available_balance(user_id):
+    """Get available balance after subtracting reserved funds"""
+    user_balance = users.get(user_id, {"balance": 0})["balance"]
+    reserved_balance = reserved_funds.get(user_id, {}).get("balance", 0)
+    return user_balance - reserved_balance
+
+def get_available_baki_limit(user_id):
+    """Get available baki limit after subtracting reserved funds and current due"""
+    user_due = baki_data.get(user_id, {"due": 0, "bakiLimit": 0})["due"]
+    user_baki_limit = baki_data.get(user_id, {"bakiLimit": 0})["bakiLimit"]
+    reserved_baki = reserved_funds.get(user_id, {}).get("baki", 0)
+    return user_baki_limit - user_due - reserved_baki
 
 @client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}tp(?:\\s+(\\d+)\\s+(\\w+)\\s*(\\d*))?$'))
 async def topup_command(event):
@@ -819,27 +919,27 @@ async def topup_command(event):
     if is_admin and event.is_private:
         user_id = str(event.chat_id)
         logger.info(f"Admin {event.sender_id} sent /tp in user {user_id}'s inbox; using user_id {user_id}")
-
+    
     if not await check_prefix(event):
         logger.warning(f"Prefix check failed for user {event.sender_id} in chat {event.chat_id}")
         return
-
+    
     if not is_subscription_valid():
         if event.sender_id == ADMIN_ID:
             await event.reply("**➥ 𝚂𝚞𝚋𝚜𝚌𝚛𝚒𝚙𝚝𝚒𝚘𝚗 𝚎𝚡𝚙𝚒𝚛𝚎𝚍. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚎𝚡𝚝𝚎𝚗𝚍 𝚝𝚑𝚎 𝚜𝚞𝚋𝚜𝚌𝚛𝚒𝚙𝚝𝚒𝚘𝚗 !**")
             logger.info(f"Subscription expired for admin {event.sender_id}")
         return
-
+    
     if not is_user_signed_up(int(user_id)):
         await event.reply(f"➥ 𝚈𝚘𝚞 𝚊𝚛𝚎 𝚗𝚘𝚝 𝚜𝚒𝚐𝚗𝚎𝚍 𝚞𝚙. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚞𝚜𝚎 {BOT_PREFIX}𝚜𝚒𝚐𝚗𝚞𝚙.")
         logger.warning(f"User {user_id} attempted /tp but is not signed up")
         return
-
+    
     if not is_admin and not is_tp_user_signed_up(user_id):
         await event.reply(f"➥ 𝚈𝚘𝚞 𝚊𝚛𝚎 𝚗𝚘𝚝 𝚜𝚒𝚐𝚗𝚎𝚍 𝚞𝚙 𝚏𝚘𝚛 𝚝𝚘𝚙-𝚞𝚙. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚞𝚜𝚎 {BOT_PREFIX}𝚝𝚙𝚜𝚒𝚐𝚗𝚞𝚙.")
         logger.warning(f"User {user_id} attempted /tp but is not signed up for top-up")
         return
-
+    
     if not event.pattern_match.group(1):
         package_list = [
             "অটো টপ-আপ নেওয়ার নিয়ম!",
@@ -881,181 +981,211 @@ async def topup_command(event):
         await event.reply(response)
         logger.info(f"User {user_id} requested /tp package list")
         return
-
-    try:
-        user_entity = await client.get_entity(int(user_id))
-        display_name = user_entity.first_name or user_entity.username or user_id
-        
-        playerid = event.pattern_match.group(1).strip()
-        package = event.pattern_match.group(2).strip().lower()
-        quantity = event.pattern_match.group(3).strip() or "1"
-        quantity = int(quantity)
-
-        if package not in PRODUCT_VARIATIONS:
-            valid_packages = ", ".join(PRODUCT_VARIATIONS.keys())
-            await event.reply(
-                f"❌ 𝙸𝚗𝚟𝚊𝚕𝚒𝚍 𝚙𝚊𝚌𝚔𝚊𝚐𝚎: {package}\n"
-                f"➪ 𝚅𝚊𝚕𝚒𝚍 𝚙𝚊𝚌𝚔𝚊𝚐𝚎𝚜: {valid_packages}"
-            )
-            logger.warning(f"Invalid package {package} by user {user_id}")
-            return
-
-        uc_type = PRODUCT_VARIATIONS[package]['uc_type']
-        package_name = PRODUCT_VARIATIONS[package]['name']
-        api_package = PRODUCT_VARIATIONS[package].get('api_package', package)
-
-        if quantity < 1:
-            await event.reply(
-                "❌ 𝚀𝚞𝚊𝚗𝚝𝚒𝚝𝚢 𝚖𝚞𝚜𝚝 𝚋𝚎 𝚊𝚝 𝚕𝚎𝚊𝚜𝚝 𝟷."
-            )
-            logger.warning(f"Invalid quantity {quantity} by user {user_id}")
-            return
-
-        # Calculate total cost based on package type
-        total_cost = 0
-        is_shell_package = uc_type is None
-        
-        if is_shell_package:
-            if package not in package_prices:
-                await event.reply(
-                    f"❌ 𝙿𝚛𝚒𝚌𝚎 𝚗𝚘𝚝 𝚜𝚎𝚝 𝚏𝚘𝚛 {package_name}. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚌𝚘𝚗𝚝𝚊𝚌𝚝 𝚊𝚍𝚖𝚒𝚗."
-                )
-                logger.warning(f"Price not set for shell package {package} by user {user_id}")
-                return
-            total_cost = package_prices[package] * quantity
-        else:
-            if uc_stock[uc_type]["stock"] < quantity:
-                await event.reply(
-                    f"❌ 𝙸𝚗𝚜𝚞𝚏𝚏𝚒𝚌𝚒𝚎𝚗𝚝 𝚜𝚝𝚘𝚌𝚔 𝚏𝚘𝚛 {package_name}. 𝙰𝚟𝚊𝚒𝚕𝚊𝚋𝚕𝚎: {uc_stock[uc_type]['stock']}."
-                )
-                logger.warning(f"Insufficient stock for UC type {uc_type}, requested {quantity} by user {user_id}")
-                return
-            total_cost = get_uc_price(user_id, uc_type) * quantity
-
-        user_balance = users.get(user_id, {"balance": 0})["balance"]
-        user_due = baki_data.get(user_id, {"due": 0, "bakiLimit": 0})["due"]
-        user_baki_limit = baki_data.get(user_id, {"bakiLimit": 0})["bakiLimit"]
-        available_baki_limit = user_baki_limit - user_due
-
-        payment_type = None
-        if is_admin:
-            payment_type = "admin"
-        else:
-            can_use_balance = user_balance >= total_cost
-            can_use_baki = available_baki_limit >= total_cost
+    
+    # Get user lock to prevent race conditions
+    user_lock = get_user_lock(user_id)
+    
+    async with user_lock:
+        try:
+            user_entity = await client.get_entity(int(user_id))
+            display_name = user_entity.first_name or user_entity.username or user_id
             
-            if can_use_balance:
-                payment_type = "balance"
-            elif can_use_baki:
-                payment_type = "baki"
-            else:
+            playerid = event.pattern_match.group(1).strip()
+            package_input = event.pattern_match.group(2).strip().lower()
+            quantity = event.pattern_match.group(3).strip() or "1"
+            quantity = int(quantity)
+            
+            if package_input not in PACKAGE_ALIASES:
+                # Show all possible inputs (aliases) in error message
+                valid_inputs = list(PACKAGE_ALIASES.keys())
                 await event.reply(
-                    f"❌ 𝙸𝚗𝚜𝚞𝚏𝚏𝚒𝚌𝚒𝚎𝚗𝚝 𝚋𝚊𝚕𝚊𝚗𝚌𝚎 ({user_balance}৳) 𝚘𝚛 𝚋𝚊𝚔𝚒 𝚕𝚒𝚖𝚒𝚝 ({available_baki_limit}৳) 𝚏𝚘𝚛 𝚝𝚘𝚝𝚊𝚕 𝚌𝚘𝚜𝚝 {total_cost}৳."
+                    f"❌ 𝙸𝚗𝚟𝚊𝚕𝚒𝚍 𝚙𝚊𝚌𝚔𝚊𝚐𝚎: {package_input}\n"
+                    f"➪ 𝚅𝚊𝚕𝚒𝚍 𝚙𝚊𝚌𝚔𝚊𝚐𝚎𝚜: {', '.join(valid_inputs)}"
                 )
-                logger.warning(f"User {user_id} has insufficient balance ({user_balance}) or baki limit ({available_baki_limit}) for cost {total_cost}")
+                logger.warning(f"Invalid package {package_input} by user {user_id}")
                 return
-
-        # Prepare codes for Unipin packages, use "shell" for shell packages
-        codes_for_request = []
-        if is_shell_package:
-            codes_for_request = ["shell"] * quantity
-        else:
-            for _ in range(quantity):
-                if not uc_stock[uc_type]["codes"]:
-                    await event.reply(
-                        f"❌ 𝙽𝚘 𝚖𝚘𝚛𝚎 𝚌𝚘𝚍𝚎𝚜 𝚊𝚟𝚊𝚒𝚕𝚊𝚋𝚕𝚎 𝚏𝚘𝚛 {package_name} 𝚍𝚞𝚛𝚒𝚗𝚐 𝚙𝚛𝚘𝚌𝚎𝚜𝚜𝚒𝚗𝚐."
-                    )
-                    logger.warning(f"No more codes for UC type {uc_type} during processing for user {user_id}")
-                    # Return already popped codes
-                    for code_to_revert in codes_for_request:
-                        uc_stock[uc_type]["codes"].append(code_to_revert)
-                    save_data(uc_stock_collection, uc_stock)
-                    return
-                code = uc_stock[uc_type]["codes"].pop(0)
-                codes_for_request.append(code)
-
-        orderid = generate_unique_orderid(quantity)
-
-        # Initialize callback tracking
-        order_callbacks[str(orderid)] = {
-            'expected': quantity,
-            'received': [],
-            'processed': False
-        }
-
-        initial_response_lines = [
-            "```",
-            f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
-            "┌────────────────────┐",
-            f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {orderid}",
-            f"│ 𝚃𝙶 𝙸𝙳  : {display_name}",
-            f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 🅟🅔🅝🅓🅘🅝🅖",
-            f"│ 𝚄𝙸𝙳    : {playerid}",
-            "└────────────────────┘",
-            "┌─────────────────────┐",
-            f"│ 𝚃𝚘𝚝𝚊𝚕  : {total_cost}৳",
-            f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 🅟🅔🅝🅓🅘🅝🅖",
-            "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP───┘",
-            "```"
-        ]
-
-        initial_message = await event.reply("\n".join(initial_response_lines))
-        logger.info(f"Sent initial pending message for order {orderid} to chat {event.chat_id}, message_id {initial_message.id}")
-
-        uc_purchase = {uc_type: quantity} if uc_type else None
-        
-        pending_order_data = {
-            "_id": str(orderid),
-            "chat_id": str(event.chat_id),
-            "message_id": initial_message.id,
-            "playerid": playerid,
-            "package_name": package_name,
-            "uc_type": uc_type,
-            "quantity": quantity,
-            "total_cost": total_cost,
-            "payment_type": payment_type,
-            "previous_balance": user_balance,
-            "previous_due": user_due,
-            "codes_popped": codes_for_request,
-            "uc_purchase": uc_purchase,
-            "start_time": start_time
-        }
-        
-        save_pending_topup(pending_order_data)
-        logger.info(f"Saved pending top-up data for order {orderid}")
-
-        callback_url_for_api = f"{CALLBACK_BASE_URL}/completeorder/asd"
-        
-        # Send API requests for each code
-        for i, code_to_send in enumerate(codes_for_request):
-            data = {
-                "playerid": playerid,
-                "pacakge": api_package,
-                "code": code_to_send,
-                "orderid": orderid,
-                "url": callback_url_for_api
-            }
+            
+            # Get the canonical package name
+            package = PACKAGE_ALIASES[package_input]
+            
+            # Continue with existing logic using the canonical package name
+            if package not in PRODUCT_VARIATIONS:
+                valid_packages = ", ".join(PRODUCT_VARIATIONS.keys())
+                await event.reply(
+                    f"❌ 𝙿𝚊𝚌𝚔𝚊𝚐𝚎 𝚌𝚘𝚗𝚏𝚒𝚐𝚞𝚛𝚊𝚝𝚒𝚘𝚗 𝚎𝚛𝚛𝚘𝚛: {package}\n"
+                    f"➪ 𝙲𝚘𝚗𝚏𝚒𝚐𝚞𝚛𝚎𝚍 𝚙𝚊𝚌𝚔𝚊𝚐𝚎𝚜: {valid_packages}"
+                )
+                logger.warning(f"Package configuration missing for {package} by user {user_id}")
+                return
+            
+            uc_type = PRODUCT_VARIATIONS[package]['uc_type']
+            package_name = PRODUCT_VARIATIONS[package]['name']
+            api_package = PRODUCT_VARIATIONS[package].get('api_package', package)
+            
+            if quantity < 1:
+                await event.reply(
+                    "❌ 𝚀𝚞𝚊𝚗𝚝𝚒𝚝𝚢 𝚖𝚞𝚜𝚝 𝚋𝚎 𝚊𝚝 𝚕𝚎𝚊𝚜𝚝 𝟷."
+                )
+                logger.warning(f"Invalid quantity {quantity} by user {user_id}")
+                return
+            
+            # Calculate total cost based on package type
+            total_cost = 0
+            is_shell_package = uc_type is None
             
             if is_shell_package:
-                data.update({
-                    "username": "552418148",
-                    "password": "Ff&#%@14@Wf",
-                    "autocode": "AKAHLLT5ZFEQG3FV",
-                    "tgbotid": "7218497452",
-                    "shell_balance": 00
-                })
-
-            try:
-                response = requests.post(TOPUP_API_URL, json=data, timeout=1000)
-                logger.info(f"Top-up API request {i+1}/{quantity} for orderid {orderid}: Status {response.status_code}, Body {response.text}")
-            except requests.RequestException as e:
-                logger.error(f"API request {i+1}/{quantity} failed for orderid {orderid}: {str(e)}")
-
-    except Exception as e:
-        await event.reply(
-            f"❌ 𝙴𝚛𝚛𝚘𝚛: {str(e)}"
-        )
-        logger.error(f"Error in /tp command for user {user_id}: {str(e)}")
+                if package not in package_prices:
+                    await event.reply(
+                        f"❌ 𝙿𝚛𝚒𝚌𝚎 𝚗𝚘𝚝 𝚜𝚎𝚝 𝚏𝚘𝚛 {package_name}. 𝙿𝚕𝚎𝚊𝚜𝚎 𝚌𝚘𝚗𝚝𝚊𝚌𝚝 𝚊𝚍𝚖𝚒𝚗."
+                    )
+                    logger.warning(f"Price not set for shell package {package} by user {user_id}")
+                    return
+                total_cost = package_prices[package] * quantity
+            else:
+                if uc_stock[uc_type]["stock"] < quantity:
+                    await event.reply(
+                        f"❌ 𝙸𝚗𝚜𝚞𝚏𝚏𝚒𝚌𝚒𝚎𝚗𝚝 𝚜𝚝𝚘𝚌𝚔 𝚏𝚘𝚛 {package_name}. 𝙰𝚟𝚊𝚒𝚕𝚊𝚋𝚕𝚎: {uc_stock[uc_type]['stock']}."
+                    )
+                    logger.warning(f"Insufficient stock for UC type {uc_type}, requested {quantity} by user {user_id}")
+                    return
+                total_cost = get_uc_price(user_id, uc_type) * quantity
+            
+            # Check available funds (after reservations)
+            available_balance = get_available_balance(user_id)
+            available_baki_limit = get_available_baki_limit(user_id)
+            
+            payment_type = None
+            if is_admin:
+                payment_type = "admin"
+            else:
+                can_use_balance = available_balance >= total_cost
+                can_use_baki = available_baki_limit >= total_cost
+                
+                if can_use_balance:
+                    payment_type = "balance"
+                elif can_use_baki:
+                    payment_type = "baki"
+                else:
+                    await event.reply(
+                        f"❌ 𝙸𝚗𝚜𝚞𝚏𝚏𝚒𝚌𝚒𝚎𝚗𝚝 𝚊𝚟𝚊𝚒𝚕𝚊𝚋𝚕𝚎 𝚋𝚊𝚕𝚊𝚗𝚌𝚎 ({available_balance}৳) 𝚘𝚛 𝚋𝚊𝚔𝚒 𝚕𝚒𝚖𝚒𝚝 ({available_baki_limit}৳) 𝚏𝚘𝚛 𝚝𝚘𝚝𝚊𝚕 𝚌𝚘𝚜𝚝 {total_cost}৳."
+                    )
+                    logger.warning(f"User {user_id} has insufficient available balance ({available_balance}) or baki limit ({available_baki_limit}) for cost {total_cost}")
+                    return
+            
+            # Reserve funds immediately (only for non-admin users)
+            if payment_type != "admin":
+                reserve_funds(user_id, total_cost, payment_type)
+                logger.info(f"Reserved {total_cost}৳ ({payment_type}) for user {user_id}")
+            
+            # Prepare codes for Unipin packages, use "shell" for shell packages
+            codes_for_request = []
+            if is_shell_package:
+                codes_for_request = ["shell"] * quantity
+            else:
+                for _ in range(quantity):
+                    if not uc_stock[uc_type]["codes"]:
+                        # Release reserved funds before returning
+                        if payment_type != "admin":
+                            release_funds(user_id, total_cost, payment_type)
+                        
+                        await event.reply(
+                            f"❌ 𝙽𝚘 𝚖𝚘𝚛𝚎 𝚌𝚘𝚍𝚎𝚜 𝚊𝚟𝚊𝚒𝚕𝚊𝚋𝚕𝚎 𝚏𝚘𝚛 {package_name} 𝚍𝚞𝚛𝚒𝚗𝚐 𝚙𝚛𝚘𝚌𝚎𝚜𝚜𝚒𝚗𝚐."
+                        )
+                        logger.warning(f"No more codes for UC type {uc_type} during processing for user {user_id}")
+                        # Return already popped codes
+                        for code_to_revert in codes_for_request:
+                            uc_stock[uc_type]["codes"].append(code_to_revert)
+                        save_data(uc_stock_collection, uc_stock)
+                        return
+                    code = uc_stock[uc_type]["codes"].pop(0)
+                    codes_for_request.append(code)
+            
+            orderid = generate_unique_orderid(quantity)
+            order_callbacks[str(orderid)] = {
+                'expected': quantity,
+                'received': [],
+                'processed': False
+            }
+            
+            initial_response_lines = [
+                "```",
+                f"{package_name} 💎 𝚃𝙾𝙿𝚄𝙿 𝙳𝙾𝙽𝙴",
+                "┌────────────────────┐",
+                f"│ 𝙾𝚛𝚍𝚎𝚛 𝙸𝙳 : {orderid}",
+                f"│ 𝚃𝙶 𝙸𝙳 : {display_name}",
+                f"│ 𝙵𝚏 𝙽𝚊𝚖𝚎: 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
+                f"│ 𝚄𝙸𝙳 : {playerid}",
+                "└────────────────────┘",
+                "┌─────────────────────┐",
+                f"│ 𝚃𝚘𝚝𝚊𝚕 : {total_cost}৳",
+                f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : 𝚙𝚎𝚗𝚍𝚒𝚗𝚐",
+                "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP───┘",
+                "```"
+            ]
+            
+            initial_message = await event.reply("\n".join(initial_response_lines))
+            logger.info(f"Sent initial pending message for order {orderid} to chat {event.chat_id}, message_id {initial_message.id}")
+            
+            uc_purchase = {uc_type: quantity} if uc_type else None
+            
+            pending_order_data = {
+                "_id": str(orderid),
+                "chat_id": str(event.chat_id),
+                "message_id": initial_message.id,
+                "playerid": playerid,
+                "package_name": package_name,
+                "uc_type": uc_type,
+                "quantity": quantity,
+                "total_cost": total_cost,
+                "payment_type": payment_type,
+                "previous_balance": users.get(user_id, {"balance": 0})["balance"],
+                "previous_due": baki_data.get(user_id, {"due": 0})["due"],
+                "codes_popped": codes_for_request,
+                "uc_purchase": uc_purchase,
+                "start_time": start_time,
+                "reserved_amount": total_cost if payment_type != "admin" else 0,
+                "user_id": user_id  # Add user_id for fund release
+            }
+            
+            save_pending_topup(pending_order_data)
+            logger.info(f"Saved pending top-up data for order {orderid}")
+            
+            callback_url_for_api = f"{CALLBACK_BASE_URL}/completeorder/asd"
+            
+            # Send API requests for each code
+            for i, code_to_send in enumerate(codes_for_request):
+                data = {
+                    "playerid": playerid,
+                    "pacakge": api_package,
+                    "code": code_to_send,
+                    "orderid": orderid,
+                    "url": callback_url_for_api
+                }
+                
+                if is_shell_package:
+                    data.update({
+                        "username": "552418148",
+                        "password": "Ff&#%@14@Wf",
+                        "autocode": "AKAHLLT5ZFEQG3FV",
+                        "tgbotid": "7218497452",
+                        "shell_balance": 00
+                    })
+                
+                try:
+                    response = requests.post(TOPUP_API_URL, json=data, timeout=1000)
+                    logger.info(f"Top-up API request {i+1}/{quantity} for orderid {orderid}: Status {response.status_code}, Body {response.text}")
+                except requests.RequestException as e:
+                    logger.error(f"API request {i+1}/{quantity} failed for orderid {orderid}: {str(e)}")
+        
+        except Exception as e:
+            # Release reserved funds on error
+            if 'payment_type' in locals() and payment_type != "admin" and 'total_cost' in locals():
+                release_funds(user_id, total_cost, payment_type)
+            
+            await event.reply(
+                f"❌ 𝙴𝚛𝚛𝚘𝚛: {str(e)}"
+            )
+            logger.error(f"Error in /tp command for user {user_id}: {str(e)}")
 #USDT FUNCTIONS
 @client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}usdsignup$'))
 async def usd_sign_up_user(event):
@@ -5230,7 +5360,7 @@ async def home(request):
     logger.info(f"Received request on / route: {request}")
     return web.Response(text="Bot is alive!")
 # New aiohttp route for the callback
-# Command: /completeorder/asd
+# Start the cleanup task when the bot starts
 async def completeorder_callback(request):
     try:
         logger.info(f"Received /completeorder/asd callback request")
@@ -5296,9 +5426,9 @@ async def completeorder_callback(request):
                 del order_locks[callback_orderid]
             
             logger.info(f"Completed processing order {callback_orderid}")
-            
-        return web.Response(text="Callback processed successfully", status=200)
         
+        return web.Response(text="Callback processed successfully", status=200)
+    
     except Exception as e:
         logger.error(f"Error in /completeorder/asd callback: {str(e)}")
         return web.Response(text=f"Error processing callback: {str(e)}", status=500)
@@ -5319,34 +5449,35 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
         codes_popped = pending_order["codes_popped"]
         uc_purchase = pending_order["uc_purchase"]
         start_time = pending_order["start_time"]
-
+        reserved_amount = pending_order.get("reserved_amount", 0)
+        user_id = pending_order.get("user_id", str(chat_id))
+        
         duration = time.time() - start_time
         duration_str = f"{duration:.2f}𝚜"
-
         user_entity = await client.get_entity(chat_id)
         display_name = user_entity.first_name or user_entity.username or str(chat_id)
-
+        
         # Analyze callback results
         success_count = 0
         consumed_voucher_count = 0
         wrong_playerid_count = 0
         other_failures = 0
-
+        
         # Count different types of results with improved condition checking
         for cb in all_callbacks:
             if cb['status'] == 'success':
                 success_count += 1
             elif 'consume' in cb['content'].lower() and 'voucher' in cb['content'].lower():
                 consumed_voucher_count += 1
-            elif 'wrong' in cb['content'].lower() and ('playerid' in cb['content'].lower() or 'layerid' in cb['content'].lower()):
+            elif 'wrong playerid' in cb['content'].lower() or 'invalid player id' in cb['content'].lower():
                 wrong_playerid_count += 1
             else:
                 other_failures += 1
-
+        
         # Determine how to handle stock and payment
         has_wrong_playerid = wrong_playerid_count > 0
         has_success = success_count > 0
-
+        
         # Handle stock management based on results
         if uc_type:  # Only for UC packages
             if has_wrong_playerid:
@@ -5373,30 +5504,31 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                 uc_stock[uc_type]["stock"] -= (success_count + consumed_voucher_count)
                 
                 logger.info(f"Moved {len(successful_codes)} codes to used, returned {len(failed_codes)} codes to stock, {consumed_voucher_count} consumed vouchers not returned")
-
             save_data(uc_stock_collection, uc_stock)
-
-        # Handle payment based on successful transactions only
-        if not has_wrong_playerid and has_success and payment_type != "admin":
-            # Calculate cost for successful items only
-            successful_cost = (total_cost / quantity) * success_count
-
-            if payment_type == "balance":
-                users[str(chat_id)]["balance"] -= successful_cost
-                save_data(users_collection, users)
-            elif payment_type == "baki":
-                baki_data[str(chat_id)]["due"] += successful_cost
-                if uc_purchase:
-                    for uc_type_key, qty in uc_purchase.items():
-                        successful_qty = int((qty / quantity) * success_count)
-                        if uc_type_key not in baki_data[str(chat_id)]["uc_purchases"]:
-                            baki_data[str(chat_id)]["uc_purchases"][uc_type_key] = 0
-                        baki_data[str(chat_id)]["uc_purchases"][uc_type_key] += successful_qty
-                save_data(baki_data_collection, baki_data)
-
+        
+        # Release reserved funds and handle payment based on successful transactions only
+        if payment_type != "admin":
+            # Release all reserved funds first
+            release_funds(user_id, reserved_amount, payment_type)
+            
+            if not has_wrong_playerid and has_success:
+                # Calculate cost for successful items only
+                successful_cost = (total_cost / quantity) * success_count
+                if payment_type == "balance":
+                    users[str(chat_id)]["balance"] -= successful_cost
+                    save_data(users_collection, users)
+                elif payment_type == "baki":
+                    baki_data[str(chat_id)]["due"] += successful_cost
+                    if uc_purchase:
+                        for uc_type_key, qty in uc_purchase.items():
+                            successful_qty = int((qty / quantity) * success_count)
+                            if uc_type_key not in baki_data[str(chat_id)]["uc_purchases"]:
+                                baki_data[str(chat_id)]["uc_purchases"][uc_type_key] = 0
+                            baki_data[str(chat_id)]["uc_purchases"][uc_type_key] += successful_qty
+                    save_data(baki_data_collection, baki_data)
+        
         # Build response message
         response_lines = []
-
         if has_wrong_playerid:
             # Wrong player ID response - don't show voucher codes
             response_lines = [
@@ -5409,18 +5541,15 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                 f"│ 𝚄𝙸𝙳    : {playerid}",
                 "└────────────────────┘"
             ]
-
             # Show WRONG PLAYER ID for all items instead of voucher codes
             for i in range(quantity):
                 response_lines.append("𝚆𝚁𝙾𝙽𝙶 𝙿𝙻𝙰𝚈𝙴𝚁 𝙸𝙳 🅧︎")
-
             response_lines.extend([
                 "┌─────────────────────┐",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
                 "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘",
                 "```"
             ])
-
         elif has_success or consumed_voucher_count > 0:
             # Success response (partial or full)
             response_lines = [
@@ -5433,7 +5562,6 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                 f"│ 𝚄𝙸𝙳    : {playerid}",
                 "└────────────────────┘"
             ]
-
             # Show individual results with proper ✅/❌ indicators
             if uc_type:  # UC package
                 for i, cb in enumerate(all_callbacks):
@@ -5448,15 +5576,12 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                         response_lines.append(f"│ 𝚂𝚑𝚎𝚕𝚕 𝙿𝚊𝚌𝚔𝚊𝚐𝚎 𝙰𝚙𝚙𝚕𝚒𝚎𝚍 ✓︎")
                     else:
                         response_lines.append(f"│ 𝚂𝚑𝚎𝚕𝚕 𝙿𝚊𝚌𝚔𝚊𝚐𝚎 𝙵𝚊𝚒𝚕𝚎𝚍 🅧︎")
-
             response_lines.append("┌─────────────────────┐")
-
             if payment_type == "admin":
                 response_lines.append("│ 𝚂𝚝𝚊𝚝𝚞𝚜 : 𝙽𝚘 𝙳𝚞𝚎 (𝙰𝚍𝚖𝚒𝚗)")
             else:
                 successful_cost = (total_cost / quantity) * success_count
                 response_lines.append(f"│ 𝚃𝚘𝚝𝚊𝚕  : {successful_cost}৳")
-
                 if payment_type == "balance":
                     current_balance = users.get(str(chat_id), {'balance': 0})['balance']
                     response_lines.extend([
@@ -5466,14 +5591,12 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                 else:
                     new_due = baki_data[str(chat_id)]["due"]
                     response_lines.append(f"│ 𝙳𝚞𝚎    : {previous_due} + {successful_cost} = {new_due}৳")
-
             response_lines.extend([
                 "│",
                 f"│ 𝙳𝚞𝚛𝚊𝚝𝚒𝚘𝚗 : {duration_str}",
                 "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAME SHOP ───┘",
                 "```"
             ])
-
         else:
             # Complete failure response
             response_lines = [
@@ -5486,7 +5609,6 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                 f"│ 𝚄𝙸𝙳    : {playerid}",
                 "└────────────────────┘"
             ]
-
             # Show individual failures
             if uc_type:  # UC package
                 for i, cb in enumerate(all_callbacks):
@@ -5495,7 +5617,6 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
             else:  # Shell package
                 for i in range(quantity):
                     response_lines.append(f"│ Shell Package 🅧︎")
-
             response_lines.extend([
                 f"🅧︎ 𝚂𝚝𝚊𝚝𝚞𝚜: 𝙰𝚕𝚕 𝚏𝚊𝚒𝚕𝚎𝚍",
                 "┌─────────────────────┐",
@@ -5503,11 +5624,11 @@ async def process_final_order_result(callback_orderid, pending_order, all_callba
                 "└── 𝙿𝚘𝚠𝚎𝚛𝚎𝚍 𝚋𝚢 FF GAMESHOP ───┘",
                 "```"
             ])
-
+        
         # Update the message
         await client.edit_message(chat_id, message_id, "\n".join(response_lines))
         logger.info(f"Updated final message for order {callback_orderid}: {success_count} success, {consumed_voucher_count} consumed, {wrong_playerid_count} wrong ID, {other_failures} other failures")
-
+    
     except Exception as e:
         logger.error(f"Error processing final order result for {callback_orderid}: {str(e)}")
 
@@ -5533,6 +5654,70 @@ async def cleanup_old_callbacks():
         if orderid in order_locks:
             del order_locks[orderid]
         logger.info(f"Cleaned up old callback tracking for order {orderid}")
+
+async def cleanup_old_reservations():
+    """Clean up reserved funds for orders older than 15 minutes"""
+    current_time = time.time()
+    to_remove = []
+    
+    # Get all pending orders
+    pending_orders = get_all_pending_topups()  # You need to implement this function
+    
+    for pending_order in pending_orders:
+        order_age = current_time - pending_order.get('start_time', current_time)
+        if order_age > 900:  # 15 minutes
+            orderid = pending_order.get('_id')
+            user_id = pending_order.get('user_id')
+            reserved_amount = pending_order.get('reserved_amount', 0)
+            payment_type = pending_order.get('payment_type')
+            
+            if reserved_amount > 0 and payment_type != "admin":
+                release_funds(user_id, reserved_amount, payment_type)
+                logger.info(f"Released reserved funds for expired order {orderid}")
+            
+            to_remove.append(orderid)
+    
+    # Clean up expired pending orders
+    for orderid in to_remove:
+        delete_pending_topup(orderid)
+        if orderid in order_callbacks:
+            del order_callbacks[orderid]
+        if orderid in order_locks:
+            del order_locks[orderid]
+        logger.info(f"Cleaned up expired order {orderid}")
+
+# Add periodic cleanup task
+async def periodic_cleanup():
+    """Run cleanup tasks every 5 minutes"""
+    while True:
+        try:
+            await cleanup_old_callbacks()
+            await cleanup_old_reservations()
+            await asyncio.sleep(300)  # 5 minutes
+        except Exception as e:
+            logger.error(f"Error in periodic cleanup: {str(e)}")
+            await asyncio.sleep(60)  # Wait 1 minute before retrying
+# Add command to check reserved funds (admin only)
+@client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}reserved$'))
+async def check_reserved_funds(event):
+    if event.sender_id != ADMIN_ID:
+        return
+    
+    if not reserved_funds:
+        await event.reply("No funds are currently reserved.")
+        return
+    
+    response_lines = ["**Reserved Funds:**", ""]
+    for user_id, funds in reserved_funds.items():
+        if funds["balance"] > 0 or funds["baki"] > 0:
+            response_lines.append(f"User {user_id}:")
+            if funds["balance"] > 0:
+                response_lines.append(f"  Balance: {funds['balance']}৳")
+            if funds["baki"] > 0:
+                response_lines.append(f"  Baki: {funds['baki']}৳")
+            response_lines.append("")
+    
+    await event.reply("\n".join(response_lines))
 app = web.Application()
 async def main():
     logger.info("Starting bot...")
@@ -5553,6 +5738,7 @@ async def main():
 
     await sync_internal_data(client)
     asyncio.create_task(auto_load_emails_periodically())
+    asyncio.create_task(periodic_cleanup())
     app.router.add_get('/', home)
     app.router.add_route('*', '/drutopay_callback', drutopay_callback)
     app.router.add_route('*', '/callback', payment_callback)
