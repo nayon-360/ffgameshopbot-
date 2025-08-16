@@ -630,7 +630,7 @@ def delete_pending_topup(order_id):
 
 # Callback URL for the external top-up API
 CALLBACK_BASE_URL = "https://ffgameshopbot-ebrx.onrender.com" # As per your original code
-TOPUP_API_URL = "http://15.235.163.161:333/complete" # As per your original code
+TOPUP_API_URL = "http://15.235.163.161:3333/complete" # As per your original code
 
 # Command: /tpsignup
 @client.on(events.NewMessage(pattern=f'^{BOT_PREFIX}tpsignup$'))
